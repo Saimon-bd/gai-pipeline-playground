@@ -45,36 +45,61 @@ on:
 jobs:
   paths:
     name: Detect Changes
-    runs-on: [ ubuntu-latest ]
+    runs-on: ubuntu-latest
     outputs:
-      result: ${{ github.event_name == 'workflow_dispatch' && steps.set.outputs.input || steps.filter.outputs.changes }} 
+      result: ${{ github.event_name == 'workflow_dispatch' && steps.set.outputs.input || steps.filter.outputs.changes }}
     steps:
       - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
           fetch-depth: 0
-      
+
+      - name: Debug GitHub Context
+        run: |
+          echo "Event name: ${{ github.event_name }}"
+          echo "Pull request merged: ${{ github.event.pull_request.merged }}"
+          echo "Inputs.environment: ${{ inputs.environment }}"
+          echo "Inputs.service: ${{ inputs.service }}"
+          echo "Inputs.config: ${{ inputs.config }}"
+
       - name: Filter Paths
         if: github.event_name != 'workflow_dispatch'
-        uses: dorny/paths-filter@ebc4d7e9ebcb0b1eb21480bb8f43113e996ac77a # v3
         id: filter
+        uses: dorny/paths-filter@v3
         with:
           filters: .github/file-filters.yml
 
+      - name: Debug Path Filter Output
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          echo "Filter output (changes): ${{ steps.filter.outputs.changes }}"
+
       - name: Check Changes
         if: github.event_name != 'workflow_dispatch' && steps.filter.outputs.changes == '[]'
-        run: echo '::notice::No changes were detected in the tracked folders, skiping terraform CD job'
+        run: echo '::notice::No changes were detected in the tracked folders, skipping terraform CD job'
     
       - name: Set Path
         if: github.event_name == 'workflow_dispatch'
         id: set
         run: echo 'input=["${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}"]' >> $GITHUB_OUTPUT
 
+  debug-condition:
+    name: Debug Condition Inputs
+    runs-on: ubuntu-latest
+    needs: paths
+    steps:
+      - name: Print Condition Values
+        run: |
+          echo "Needs paths result: ${{ needs.paths.outputs.result }}"
+          echo "GitHub event: ${{ github.event_name }}"
+          echo "Was PR merged? ${{ github.event.pull_request.merged }}"
+          echo "Final condition evaluation: ${{ (needs.paths.outputs.result != '[]' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch' }}"
+
   cd:
     name: Terraform CD
-    if: ${{ (needs.paths.outputs.result != '[]' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch'}}
-    needs: paths
+    if: ${{ (needs.paths.outputs.result != '[]' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch' }}
+    needs: [paths, debug-condition]
     uses: ./.github/workflows/terraform-cd.yml
     with:
       team: greenlane
@@ -82,3 +107,17 @@ jobs:
       paths: ${{ needs.paths.outputs.result }}
       terraform-version: 1.6.3
       region: ${{ inputs.environment == 'dev' && 'eastus2' || 'centralus' }}
+
+  slack-notify:
+    name: Slack Notification
+    if: always()
+    needs: [paths, cd]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack Message
+        run: |
+          echo "Slack will notify for event ${{ github.event_name }}"
+          webhook="${{ secrets[format('SLACK_WEBHOOK_URL_{0}', inputs.environment)] }}"
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\":information_source: Deploy workflow finished. Event: *${{ github.event_name }}*, Paths: *${{ needs.paths.outputs.result }}*\"}" \
+          "$webhook"
