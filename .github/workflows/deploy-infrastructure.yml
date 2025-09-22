@@ -93,12 +93,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         id: set
         run: echo 'input=["${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}"]' >> $GITHUB_OUTPUT
-      - name: Map env to secret
-        id: map
-        run: |
-          case "${{ inputs.environment || 'dev' }}" in
-            dev)  echo "webhook=${{ secrets.SLACK_WEBHOOK_URL_DEV }}" >> $GITHUB_OUTPUT ;;
-          esac
+      
   debug-condition:
     name: Debug Condition Inputs
     runs-on: ubuntu-latest
@@ -124,17 +119,3 @@ jobs:
       paths: ${{ needs.paths.outputs.result }}
       terraform-version: 1.6.3
       region: ${{ inputs.environment == 'dev' && 'eastus2' || 'centralus' }}
-
-  slack-notify:
-    name: Slack Notification
-    if: always()
-    needs: [paths, cd]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send Slack Message
-        run: |
-          echo "Slack will notify for event ${{ github.event_name }}"
-          curl -X POST -H 'Content-type: application/json' \
-            --data "{\"text\":\":information_source: Deploy workflow finished. Event: *${{ github.event_name }}*, Paths: *${{ needs.paths.outputs.result }}*\"}" \
-            "${{ needs.paths.outputs.webhook }}"
-
