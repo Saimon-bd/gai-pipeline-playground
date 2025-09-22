@@ -99,8 +99,10 @@ jobs:
         run: |
           env="${{ inputs.environment || 'dev' }}"
           env_upper=$(echo "$env" | tr '[:lower:]' '[:upper:]')
+          secret_name="SLACK_WEBHOOK_URL_${env_upper}"
           echo "env=$env" >> $GITHUB_OUTPUT
-          echo "webhook=${{ secrets[format('SLACK_WEBHOOK_URL_{0}', env_upper)] }}" >> $GITHUB_OUTPUT
+          echo "Using secret: $secret_name"
+          echo "webhook=${{ secrets.SLACK_WEBHOOK_URL_DEV }}" >> $GITHUB_OUTPUT
 
   debug-condition:
     name: Debug Condition Inputs
