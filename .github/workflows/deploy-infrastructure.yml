@@ -140,3 +140,4 @@ jobs:
           curl -X POST -H 'Content-type: application/json' \
             --data "{\"text\":\":information_source: Deploy workflow finished. Event: *${{ github.event_name }}*, Paths: *${{ needs.paths.outputs.result }}*\"}" \
             "${{ needs.paths.outputs.webhook }}"
+
