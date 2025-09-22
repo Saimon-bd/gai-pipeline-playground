@@ -2,10 +2,20 @@ name: Deploy Infrastructure
 
 on:
   push:
+    action:
+      - pull_request
     branches:
       - main
     paths:
       - 'environments/**/apim-config/openapi/*.yaml'
+
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+    paths:
+      - 'environments/**/apim-config/openapi/*.yaml'
+      
   workflow_dispatch:
     inputs:
       environment:
