@@ -94,6 +94,15 @@ jobs:
         id: set
         run: echo 'input=["${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}"]' >> $GITHUB_OUTPUT
 
+      - name: Map env to secret
+        id: map
+        run: |
+          case "${{ inputs.environment }}" in
+            dev)  echo "webhook=${{ secrets.SLACK_WEBHOOK_URL_DEV }}" >> $GITHUB_OUTPUT ;;
+            stg)  echo "webhook=${{ secrets.SLACK_WEBHOOK_URL_STG }}" >> $GITHUB_OUTPUT ;;
+            prd)  echo "webhook=${{ secrets.SLACK_WEBHOOK_URL_PRD }}" >> $GITHUB_OUTPUT ;;
+          esac
+          
   debug-condition:
     name: Debug Condition Inputs
     runs-on: ubuntu-latest
@@ -127,7 +136,7 @@ jobs:
       - name: Send Slack Message
         run: |
           echo "Slack will notify for event ${{ github.event_name }}"
-          webhook="${{ secrets[format('SLACK_WEBHOOK_URL_{0}', inputs.environment)] }}"
           curl -X POST -H 'Content-type: application/json' \
           --data "{\"text\":\":information_source: Deploy workflow finished. Event: *${{ github.event_name }}*, Paths: *${{ needs.paths.outputs.result }}*\"}" \
           "$webhook"
+          "${{ steps.map.outputs.webhook }}"
