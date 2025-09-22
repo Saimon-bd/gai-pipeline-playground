@@ -1,0 +1,95 @@
+name: terraform-cd
+
+on:
+  workflow_call:
+    inputs:
+      region:
+        required: false
+        type: string
+      team:
+        required: false
+        type: string
+      paths:
+        required: false
+        type: string
+      environment:
+        required: false
+        type: string
+      terraform-version:
+        required: false
+        type: string
+
+jobs:
+  terraform-plan:
+    name: Terraform Plan (simulated)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        path: ${{ fromJson(inputs.paths) }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: "environments/${{ matrix.path }}"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fake Terraform Plan
+        run: |
+          echo "This is a placeholder for Terraform Plan."
+          echo "Pretend we generated a plan for ${{ inputs.environment }} / ${{ matrix.path }}."
+          echo "plan-content" > plan.txt
+
+      - name: Get Service Name
+        id: service
+        run: |
+          path=${{ matrix.path }}
+          echo "service_name=${path////-}" >> $GITHUB_ENV
+
+      - name: Upload Fake Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ inputs.team }}-${{ env.service_name }}-${{ github.run_number }}
+          path: plan.txt
+
+  slack-notification:
+    name: Notify Slack
+    if: success()
+    needs: [terraform-plan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send notification to Slack
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\":rocket: Plan ready for *${{ inputs.environment }}*. Waiting for approval.\"}" \
+            "${{ secrets.SLACK_WEBHOOK_URL }}"
+
+  terraform-apply:
+    name: Terraform Apply (approval only)
+    runs-on: ubuntu-latest
+    needs: [terraform-plan]
+    environment: ${{ inputs.environment }} # approval required
+    strategy:
+      matrix:
+        path: ${{ fromJson(inputs.paths) }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: environments/${{ matrix.path }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Fake Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ inputs.team }}-${{ env.service_name }}-${{ github.run_number }}
+          path: environments/${{ matrix.path }}
+
+      - name: Simulate Apply
+        run: |
+          echo "Simulating apply for ${{ inputs.environment }} / ${{ matrix.path }}"
+          cat plan.txt
+          echo "Apply complete."
