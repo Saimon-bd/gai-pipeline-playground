@@ -2,8 +2,6 @@ name: Deploy Infrastructure
 
 on:
   push:
-    action:
-      - pull_request
     branches:
       - main
     paths:
@@ -58,6 +56,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       result: ${{ github.event_name == 'workflow_dispatch' && steps.set.outputs.input || steps.filter.outputs.changes }}
+      envname: ${{ steps.envmap.outputs.env }}
+      webhook: ${{ steps.envmap.outputs.webhook }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -94,6 +94,14 @@ jobs:
         id: set
         run: echo 'input=["${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}"]' >> $GITHUB_OUTPUT
 
+      - name: Map env to Slack secret
+        id: envmap
+        run: |
+          env="${{ inputs.environment || 'dev' }}"
+          env_upper=$(echo "$env" | tr '[:lower:]' '[:upper:]')
+          echo "env=$env" >> $GITHUB_OUTPUT
+          echo "webhook=${{ secrets[format('SLACK_WEBHOOK_URL_{0}', env_upper)] }}" >> $GITHUB_OUTPUT
+
   debug-condition:
     name: Debug Condition Inputs
     runs-on: ubuntu-latest
@@ -101,9 +109,11 @@ jobs:
     steps:
       - name: Print Condition Values
         run: |
-          echo "Needs paths result: ${{ needs.paths.outputs.result }}"
+          echo "Needs.paths.result: ${{ needs.paths.outputs.result }}"
           echo "GitHub event: ${{ github.event_name }}"
           echo "Was PR merged? ${{ github.event.pull_request.merged }}"
+          echo "Env name: ${{ needs.paths.outputs.envname }}"
+          echo "Webhook (masked): ${{ needs.paths.outputs.webhook != '' }}"
           echo "Final condition evaluation: ${{ (needs.paths.outputs.result != '[]' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch' }}"
 
   cd:
@@ -127,7 +137,6 @@ jobs:
       - name: Send Slack Message
         run: |
           echo "Slack will notify for event ${{ github.event_name }}"
-          webhook="${{ secrets[format('SLACK_WEBHOOK_URL_{0}', inputs.environment)] }}"
           curl -X POST -H 'Content-type: application/json' \
-          --data "{\"text\":\":information_source: Deploy workflow finished. Event: *${{ github.event_name }}*, Paths: *${{ needs.paths.outputs.result }}*\"}" \
-          "$webhook"
+            --data "{\"text\":\":information_source: Deploy workflow finished. Event: *${{ github.event_name }}*, Paths: *${{ needs.paths.outputs.result }}*\"}" \
+            "${{ needs.paths.outputs.webhook }}"
