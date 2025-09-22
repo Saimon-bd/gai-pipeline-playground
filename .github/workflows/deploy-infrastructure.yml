@@ -1,0 +1,84 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'environments/**/apim-config/openapi/*.yaml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - stg
+          - prd
+
+      service:
+        description: 'Service'
+        required: true
+        type: choice
+        options:
+          - cross-service
+          - charging-service
+          - customer-service
+          - ems-service
+          - ocpi-service
+          - frontend
+          - public-api
+          - partner-api
+
+      config:
+        description: 'Configuration'
+        required: false
+        type: choice
+        options:
+          - infrastructure
+          - apim-config
+          - psql-config
+          - ad-b2c
+          - " "
+
+jobs:
+  paths:
+    name: Detect Changes
+    runs-on: [ ubuntu-latest ]
+    outputs:
+      result: ${{ github.event_name == 'workflow_dispatch' && steps.set.outputs.input || steps.filter.outputs.changes }} 
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      
+      - name: Filter Paths
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@ebc4d7e9ebcb0b1eb21480bb8f43113e996ac77a # v3
+        id: filter
+        with:
+          filters: .github/file-filters.yml
+
+      - name: Check Changes
+        if: github.event_name != 'workflow_dispatch' && steps.filter.outputs.changes == '[]'
+        run: echo '::notice::No changes were detected in the tracked folders, skiping terraform CD job'
+    
+      - name: Set Path
+        if: github.event_name == 'workflow_dispatch'
+        id: set
+        run: echo 'input=["${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}"]' >> $GITHUB_OUTPUT
+
+  cd:
+    name: Terraform CD
+    if: ${{ (needs.paths.outputs.result != '[]' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch'}}
+    needs: paths
+    uses: ./.github/workflows/terraform-cd.yml
+    with:
+      team: greenlane
+      environment: ${{ inputs.environment }}
+      paths: ${{ needs.paths.outputs.result }}
+      terraform-version: 1.6.3
+      region: ${{ inputs.environment == 'dev' && 'eastus2' || 'centralus' }}
