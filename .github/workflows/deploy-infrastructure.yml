@@ -1,12 +1,6 @@
 name: Deploy Infrastructure
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'environments/**/apim-config/openapi/*.yaml'
-
   pull_request:
     types: [closed]
     branches:
