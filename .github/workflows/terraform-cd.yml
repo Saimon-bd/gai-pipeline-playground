@@ -2,12 +2,22 @@ name: terraform-cd
 
 on:
   workflow_call:
+    secrets:
+      github-token:
+        required: true
+      azure-credentials-env:
+        required: true
+      azure-credentials-adb2c:
+        required: false
+      azure-shared-subscription-id:
+        required: true
     inputs:
       region:
-        required: false
+        description: 'Region of the environment'
+        required: true
         type: string
       team:
-        required: false
+        required: true
         type: string
       paths:
         required: false
@@ -16,16 +26,21 @@ on:
         required: true
         type: string
       terraform-version:
-        required: false
+        required: true
         type: string
 
 jobs:
   terraform-plan:
-    name: Terraform Plan (simulated)
-    runs-on: ubuntu-latest
+    name: Terraform Plan
+    runs-on:
+      group: linux-2core-${{ inputs.environment }}-${{ inputs.region }}-group
     strategy:
       matrix:
+        # Parse JSON array containing names of all filters matching any of changed files
         path: ${{ fromJson(inputs.paths) }}
+    env:
+      TF_VAR_AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID }}
+      AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID }}
     defaults:
       run:
         shell: bash
@@ -33,100 +48,37 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
-      - name: Fake Terraform Plan
-        run: |
-          echo "This is a placeholder for Terraform Plan."
-          echo "Pretend we generated a plan for ${{ inputs.environment }} / ${{ matrix.path }}."
-          echo "plan-content" > plan.txt
+      - name: Set Environment Variables
+        uses: ./.github/workflows/azure-spn-secret-env
+        with:
+          creds-env: ${{ secrets.azure-credentials-env }}
+          creds-adb2c: ${{ secrets.azure-credentials-adb2c }}
+          environment: ${{ inputs.environment }}
 
+      - name: Configure git token
+        run: git config --global url."https://${{ secrets.github-token }}:@github.com/drivegreenlane/".insteadOf "https://github.com/drivegreenlane/"\
+
+      # Parse directory path into a usable name for artifact - substitutes '/' per '-'
       - name: Get Service Name
         id: service
-        run: |
+        run: | 
           path=${{ matrix.path }}
           echo "service_name=${path////-}" >> $GITHUB_ENV
-  slack-notification:
-    name: Notify Slack
-    if: success()
-    needs: [terraform-plan]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Debug Inputs & Context
-        run: |
-          echo "================ DEBUG START ================"
-          echo "👉 GitHub Event Name         : ${{ github.event_name }}"
-          echo "👉 Workflow Input Environment: '${{ inputs.environment }}'"
-          echo "👉 Matrix paths              : ${{ inputs.paths }}"
-          echo "👉 Team                      : ${{ inputs.team }}"
-          echo "👉 Terraform Version         : ${{ inputs.terraform-version }}"
-          echo "================= DEBUG END ================="
-  
-      - name: Decide Slack Secret Key
-        id: secretkey
-        run: |
-          case "${{ inputs.environment }}" in
-            dev)
-              echo "key=SLACK_WEBHOOK_URL_DEV" >> $GITHUB_OUTPUT
-              ;;
-            stg)
-              echo "key=SLACK_WEBHOOK_URL_STG" >> $GITHUB_OUTPUT
-              ;;
-            prd)
-              echo "key=SLACK_WEBHOOK_URL_PRD" >> $GITHUB_OUTPUT
-              ;;
-            *)
-              echo "key=" >> $GITHUB_OUTPUT
-              ;;
-          esac
-  
-      - name: Set Slack Webhook
-        id: slack
-        run: |
-          echo "url=${SLACK_WEBHOOK}" >> $GITHUB_OUTPUT
-        env:
-          SLACK_WEBHOOK: ${{ inputs.environment == 'dev' && secrets.SLACK_WEBHOOK_URL_DEV || inputs.environment == 'stg' && secrets.SLACK_WEBHOOK_URL_STG || secrets.SLACK_WEBHOOK_URL_PRD }}
-  
-      - name: Deep Debug Slack Variables
-        run: |
-          echo "================ SLACK DEBUG START ================"
-          echo "👉 inputs.environment    = '${{ inputs.environment }}'"
-          echo "👉 Using Secret Key Name = '${{ steps.secretkey.outputs.key }}'"
-          echo "👉 steps.slack.outputs.url (masked if secret) = '${{ steps.slack.outputs.url }}'"
-  
-          if [ -z "${SLACK_WEBHOOK}" ]; then
-            echo "❌ SLACK_WEBHOOK env (raw secret) is EMPTY"
-          else
-            echo "✅ SLACK_WEBHOOK env (raw secret) length: ${#SLACK_WEBHOOK}"
-          fi
-  
-          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
-            echo "❌ SLACK_WEBHOOK_URL (from step output) is EMPTY"
-          else
-            echo "✅ SLACK_WEBHOOK_URL (from step output) length: ${#SLACK_WEBHOOK_URL}"
-          fi
-          echo "================= SLACK DEBUG END ================="
-        env:
-          SLACK_WEBHOOK: ${{ inputs.environment == 'dev' && secrets.SLACK_WEBHOOK_URL_DEV || inputs.environment == 'stg' && secrets.SLACK_WEBHOOK_URL_STG || secrets.SLACK_WEBHOOK_URL_PRD }}
-          SLACK_WEBHOOK_URL: ${{ steps.slack.outputs.url }}
-  
-      - name: Send notification to Slack
-        run: |
-          echo "👉 Sending Slack notification..."
-          curl -X POST -H 'Content-type: application/json' \
-            --data "{\"text\":\":rocket: Plan ready for *${{ inputs.environment }}*. Waiting for approval.\"}" \
-            "${SLACK_WEBHOOK_URL}"
-        env:
-          SLACK_WEBHOOK_URL: ${{ steps.slack.outputs.url }}
 
   
   terraform-apply:
-    name: Terraform Apply (approval only)
-    runs-on: ubuntu-latest
+    name: Terraform Apply
+    runs-on:
+      group: linux-2core-${{ inputs.environment }}-${{ inputs.region }}-group
     needs: [terraform-plan]
-    environment: ${{ inputs.environment }} # approval required
+    environment: ${{ inputs.environment }}
     strategy:
       matrix:
+        # Parse JSON array containing names of all filters matching any of changed files
         path: ${{ fromJson(inputs.paths) }}
     defaults:
       run:
@@ -135,16 +87,55 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
-      - name: Download Fake Plan Artifact
+      - name: Set Environment Variables
+        uses: ./.github/workflows/azure-spn-secret-env
+        with:
+          creds-env: ${{ secrets.azure-credentials-env }}
+          creds-adb2c: ${{ secrets.azure-credentials-adb2c }}
+          environment: ${{ inputs.environment }}
+
+      - name: Configure git token
+        run: git config --global url."https://${{ secrets.github-token }}:@github.com/drivegreenlane/".insteadOf "https://github.com/drivegreenlane/"\
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+
+      - name: Terraform Init
+        id: init
+        run: terraform init -backend-config ${{ inputs.environment }}.backend.tfvars -upgrade
+
+      # Parse directory path into a usable name for artifact - substitutes '/' per '-'
+      - name: Get Service Name
+        id: service
+        run: |
+          path=${{ matrix.path }}
+          echo "service_name=${path////-}" >> $GITHUB_ENV
+
+      - name: Download Plan Artifact
         uses: actions/download-artifact@v4
         with:
           name: tfplan-${{ inputs.team }}-${{ env.service_name }}-${{ github.run_number }}
           path: environments/${{ matrix.path }}
 
-      - name: Simulate Apply
-        run: |
-          echo "Simulating apply for ${{ inputs.environment }} / ${{ matrix.path }}"
-          cat plan.txt
-          echo "Apply complete."
+      - name: Terraform Apply
+        id: apply
+        env:
+          TF_VAR_AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
+          AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
+        run: terraform apply -auto-approve -input=false tfplan
+
+      - name: Upload TrustFramework Policy
+        if: contains(matrix.path, 'customer-service/ad-b2c')
+        uses: azure-ad-b2c/deploy-trustframework-policy@v5
+        with:
+          folder: environments/${{ matrix.path }}/policies
+          files: "TrustFrameworkBase.xml, TrustFrameworkLocalization.xml, TrustFrameworkExtensions.xml, SignUpOrSignin.xml, SignUp.xml, SignIn.xml"
+          tenant: ${{ env.TF_VAR_GREENLANE_ADB2C_TENANT_ID }}
+          clientId: ${{ env.TF_VAR_GREENLANE_ADB2C_CLIENT_ID }}
+          clientSecret: ${{ env.TF_VAR_GREENLANE_ADB2C_CLIENT_SECRET }}
