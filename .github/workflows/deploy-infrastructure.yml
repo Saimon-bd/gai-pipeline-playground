@@ -33,7 +33,7 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      result: ${{ github.event_name == 'workflow_dispatch' && steps.set.outputs.input || steps.filter.outputs.apim }}
+      result: ${{ steps.envmap.outputs.envs }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -42,33 +42,33 @@ jobs:
           fetch-depth: 0
 
       - name: Filter Paths (auto mode)
-        if: ${{ github.event_name != 'workflow_dispatch' }}
+        if: github.event_name != 'workflow_dispatch'
         id: filter
         uses: dorny/paths-filter@v3
         with:
           filters: .github/file-filters.yml
 
       - name: Debug Filter Output
-        if: ${{ github.event_name != 'workflow_dispatch' }}
-        run: |
-          echo "Filter outputs: ${{ toJson(steps.filter.outputs) }}"
+        if: github.event_name != 'workflow_dispatch'
+        run: echo "Filter outputs: ${{ toJson(steps.filter.outputs) }}"
 
       - name: Set Path (manual mode)
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: github.event_name == 'workflow_dispatch'
         id: set
-        run: echo "input=[\"${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}\"]" >> $GITHUB_OUTPUT
+        run: |
+          input="[\"${{ inputs.environment }}\"]"
+          echo "envs=$input" >> $GITHUB_OUTPUT
 
-      - name: Extract Env from Path
+      - name: Extract Unique Envs (auto mode)
         if: github.event_name != 'workflow_dispatch'
         id: envmap
         run: |
           changes='${{ steps.filter.outputs.changes }}'
           echo "DEBUG Changes: $changes"
-          first=$(echo "$changes" | jq -r '.[0]')
-          env=$(echo "$first" | cut -d'/' -f1)
-          echo "env=$env" >> $GITHUB_OUTPUT
-          echo "Detected path: $first"
-          echo "Detected env: $env"
+
+          envs=$(echo "$changes" | jq -r '.[]' | cut -d'/' -f1 | sort -u | jq -R -s -c 'split("\n")[:-1]')
+          echo "envs=$envs" >> $GITHUB_OUTPUT
+          echo "Unique envs: $envs"
 
   cd:
     name: Terraform CD
@@ -82,7 +82,6 @@ jobs:
       azure-shared-subscription-id: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID || 'dummy-subid' }}
     with:
       team: greenlane
-      environment: ${{ inputs.environment }}
-      paths: ${{ needs.paths.outputs.result }}
+      environment: ${{ needs.paths.outputs.result }}
       terraform-version: 1.6.3
-      region: ${{ inputs.environment == 'dev' && 'eastus2' || 'centralus' }}
+      region: ${{ needs.paths.outputs.result == 'dev' && 'eastus2' || 'centralus' }}
