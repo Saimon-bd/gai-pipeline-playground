@@ -6,19 +6,16 @@ on:
       github-token:
         required: true
       azure-credentials-env:
-        required: false
+        required: true
       azure-credentials-adb2c:
         required: false
       azure-shared-subscription-id:
-        required: false
+        required: true
     inputs:
       region:
         required: true
         type: string
       team:
-        required: true
-        type: string
-      paths:
         required: true
         type: string
       environment:
@@ -45,41 +42,18 @@ jobs:
     name: Terraform Apply
     runs-on: ubuntu-latest
     needs: [terraform-plan]
-    environment: ${{ inputs.environment }}
     strategy:
       matrix:
-        path: ${{ fromJson(inputs.paths) }}
-    defaults:
-      run:
-        shell: bash
-        working-directory: environments/${{ matrix.path }}
-
+        environment: ${{ fromJson(inputs.environment) }}
+    environment: ${{ matrix.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           persist-credentials: false
 
-      - name: Extract Environment from Path
-        id: extract
-        run: |
-          echo "Matrix path: ${{ matrix.path }}"
-          envName=$(echo "${{ matrix.path }}" | cut -d'/' -f1)
-          echo "envName=$envName" >> $GITHUB_OUTPUT
-          echo "Extracted env=$envName"
-
       - name: Wait for Approval
-        run: echo "⏳ Waiting for manual approval before apply..."
+        run: echo "⏳ Waiting for approval for env=${{ matrix.environment }}"
 
       - name: Fake Terraform Apply
-        run: echo "🚀 Terraform apply completed (placeholder)"
-
-      - name: Upload TrustFramework Policy
-        if: contains(matrix.path, 'customer-service/ad-b2c')
-        uses: azure-ad-b2c/deploy-trustframework-policy@v5
-        with:
-          folder: environments/${{ matrix.path }}/policies
-          files: "TrustFrameworkBase.xml, TrustFrameworkLocalization.xml, TrustFrameworkExtensions.xml, SignUpOrSignin.xml, SignUp.xml, SignIn.xml"
-          tenant: ${{ env.TF_VAR_GREENLANE_ADB2C_TENANT_ID || 'dummy-tenant' }}
-          clientId: ${{ env.TF_VAR_GREENLANE_ADB2C_CLIENT_ID || 'dummy-client' }}
-          clientSecret: ${{ env.TF_VAR_GREENLANE_ADB2C_CLIENT_SECRET || 'dummy-secret' }}
+        run: echo "🚀 Terraform apply completed for ${{ matrix.environment }} (placeholder)"
