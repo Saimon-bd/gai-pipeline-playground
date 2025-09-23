@@ -88,9 +88,10 @@ jobs:
     uses: ./.github/workflows/terraform-cd.yml
     secrets: 
       github-token: "${{ secrets.BOT_GITHUB }}"
-      azure-credentials-env: "${{ secrets[format('AZ_SP_INFRA_CREDS_{0}', inputs.environment)] }}"
-      azure-credentials-adb2c: "${{ secrets[format('AZ_B2C_APP_{0}', inputs.environment)] }}"
-      azure-shared-subscription-id: "${{ secrets.AZ_SHARED_SUBSCRIPTION_ID }}"
+      azure-credentials-env: "${{ secrets[format('AZ_SP_INFRA_CREDS_{0}', inputs.environment)] || 'dummy-env' }}"
+      azure-credentials-adb2c: "${{ secrets[format('AZ_B2C_APP_{0}', inputs.environment)] || 'dummy-adb2c' }}"
+      azure-shared-subscription-id: "${{ secrets.AZ_SHARED_SUBSCRIPTION_ID || 'dummy-subid' }}"
+      slack-webhook-url: "${{ secrets[format('SLACK_WEBHOOK_URL_{0}', inputs.environment)] || 'dummy-slack' }}"
     with:
       team: greenlane
       environment: ${{ inputs.environment }}
