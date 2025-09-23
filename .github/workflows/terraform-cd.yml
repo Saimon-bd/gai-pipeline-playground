@@ -69,12 +69,6 @@ jobs:
           path=${{ matrix.path }}
           echo "service_name=${path////-}" >> $GITHUB_ENV
 
-      - name: Upload Plan Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan-${{ inputs.team }}-${{ env.service_name }}-${{ github.run_number }}
-          path: environments/${{ matrix.path }}/tfplan
-
   
   terraform-apply:
     name: Terraform Apply
