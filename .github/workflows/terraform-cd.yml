@@ -6,21 +6,23 @@ on:
       github-token:
         required: true
       azure-credentials-env:
-        required: true
+        required: false   # dummy fallback
       azure-credentials-adb2c:
-        required: false
+        required: false   # dummy fallback
       azure-shared-subscription-id:
-        required: true
+        required: false   # dummy fallback
+      slack-webhook-url:
+        required: false   # real one
+
     inputs:
       region:
-        description: 'Region of the environment'
         required: true
         type: string
       team:
         required: true
         type: string
       paths:
-        required: false
+        required: true
         type: string
       environment:
         required: true
@@ -64,6 +66,17 @@ jobs:
       - name: Wait for Approval
         run: echo "⏳ Waiting for manual approval before apply..."
 
+      - name: Slack Notify (Approval required)
+        if: always()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "⏳ *Terraform Apply is waiting for approval* \nEnvironment: `${{ inputs.environment }}` \nPath: `${{ matrix.path }}`"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.slack-webhook-url || 'https://hooks.slack.com/services/dummy' }}
+
       - name: Fake Terraform Apply
         run: echo "🚀 Terraform apply completed (placeholder)"
 
@@ -73,6 +86,6 @@ jobs:
         with:
           folder: environments/${{ matrix.path }}/policies
           files: "TrustFrameworkBase.xml, TrustFrameworkLocalization.xml, TrustFrameworkExtensions.xml, SignUpOrSignin.xml, SignUp.xml, SignIn.xml"
-          tenant: ${{ env.TF_VAR_GREENLANE_ADB2C_TENANT_ID }}
-          clientId: ${{ env.TF_VAR_GREENLANE_ADB2C_CLIENT_ID }}
-          clientSecret: ${{ env.TF_VAR_GREENLANE_ADB2C_CLIENT_SECRET }}
+          tenant: ${{ env.TF_VAR_GREENLANE_ADB2C_TENANT_ID || 'dummy-tenant' }}
+          clientId: ${{ env.TF_VAR_GREENLANE_ADB2C_CLIENT_ID || 'dummy-client' }}
+          clientSecret: ${{ env.TF_VAR_GREENLANE_ADB2C_CLIENT_SECRET || 'dummy-secret' }}
