@@ -14,35 +14,19 @@ on:
         description: 'Environment'
         required: true
         type: choice
-        options:
-          - dev
-          - stg
-          - prd
+        options: [dev, stg, prd]
 
       service:
         description: 'Service'
         required: true
         type: choice
-        options:
-          - cross-service
-          - charging-service
-          - customer-service
-          - ems-service
-          - ocpi-service
-          - frontend
-          - public-api
-          - partner-api
+        options: [cross-service, charging-service, customer-service, ems-service, ocpi-service, frontend, public-api, partner-api]
 
       config:
         description: 'Configuration'
         required: false
         type: choice
-        options:
-          - infrastructure
-          - apim-config
-          - psql-config
-          - ad-b2c
-          - " "
+        options: [infrastructure, apim-config, psql-config, ad-b2c, " "]
 
 jobs:
   paths:
@@ -66,19 +50,12 @@ jobs:
 
       - name: Debug Filter Output
         if: github.event_name != 'workflow_dispatch'
-        run: |
-          echo "Filter output: ${{ steps.filter.outputs.changes }}"
-
-      - name: Check Changes
-        if: github.event_name != 'workflow_dispatch' && steps.filter.outputs.changes == '[]'
-        run: echo '::notice::No OpenAPI changes detected, skipping CD job'
+        run: echo "Filter output: ${{ steps.filter.outputs.changes }}"
 
       - name: Set Path (manual mode)
         if: github.event_name == 'workflow_dispatch'
         id: set
-        run: |
-          echo "input=[\"${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}\"]" >> $GITHUB_OUTPUT
-          echo "Manual path: ${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}"
+        run: echo "input=[\"${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}\"]" >> $GITHUB_OUTPUT
 
       - name: Extract Env from Path
         if: github.event_name != 'workflow_dispatch'
@@ -100,7 +77,6 @@ jobs:
       azure-credentials-env: ${{ secrets[format('AZ_SP_INFRA_CREDS_{0}', inputs.environment)] || 'dummy-az-env' }}
       azure-credentials-adb2c: ${{ secrets[format('AZ_B2C_APP_{0}', inputs.environment)] || 'dummy-az-adb2c' }}
       azure-shared-subscription-id: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID || 'dummy-subid' }}
-      slack-webhook-url: ${{ secrets[format('SLACK_WEBHOOK_URL_{0}', inputs.environment)] || 'dummy-slack' }}
     with:
       team: greenlane
       environment: ${{ inputs.environment }}
