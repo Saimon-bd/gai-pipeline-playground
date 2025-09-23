@@ -47,32 +47,39 @@ on:
 jobs:
   paths:
     name: Detect Changes
-    runs-on: [ ubuntu-latest ]
+    runs-on: ubuntu-latest
     outputs:
-      result: ${{ github.event_name == 'workflow_dispatch' && steps.set.outputs.input || steps.filter.outputs.changes }} 
+      result: ${{ github.event_name == 'workflow_dispatch' && steps.set.outputs.input || steps.filter.outputs.changes }}
     steps:
       - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
           fetch-depth: 0
-      
-      - name: Filter Paths
+
+      - name: Filter Paths (auto mode)
         if: github.event_name != 'workflow_dispatch'
-        uses: dorny/paths-filter@ebc4d7e9ebcb0b1eb21480bb8f43113e996ac77a # v3
         id: filter
+        uses: dorny/paths-filter@v3
         with:
           filters: .github/file-filters.yml
 
+      - name: Debug Filter Output
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          echo "Filter output: ${{ steps.filter.outputs.changes }}"
+
       - name: Check Changes
         if: github.event_name != 'workflow_dispatch' && steps.filter.outputs.changes == '[]'
-        run: echo '::notice::No changes were detected in the tracked folders, skiping terraform CD job'
-    
-      - name: Set Path
+        run: echo '::notice::No OpenAPI changes detected, skipping CD job'
+
+      - name: Set Path (manual mode)
         if: github.event_name == 'workflow_dispatch'
         id: set
-        run: echo 'input=["${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}"]' >> $GITHUB_OUTPUT
-      
+        run: |
+          echo "input=[\"${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}\"]" >> $GITHUB_OUTPUT
+          echo "Manual path: ${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}"
+
       - name: Extract Env from Path
         if: github.event_name != 'workflow_dispatch'
         id: envmap
@@ -80,18 +87,20 @@ jobs:
           path="${{ fromJson(steps.filter.outputs.changes)[0] }}"
           env=$(echo "$path" | cut -d'/' -f1)
           echo "env=$env" >> $GITHUB_OUTPUT
+          echo "Detected path: $path"
+          echo "Detected env: $env"
 
   cd:
     name: Terraform CD
-    if: ${{ (needs.paths.outputs.result != '[]' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch'}}
+    if: ${{ (needs.paths.outputs.result != '[]' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch' }}
     needs: paths
     uses: ./.github/workflows/terraform-cd.yml
     secrets: 
-      github-token: "${{ secrets.BOT_GITHUB }}"
-      azure-credentials-env: "${{ secrets[format('AZ_SP_INFRA_CREDS_{0}', inputs.environment)] || 'dummy-env' }}"
-      azure-credentials-adb2c: "${{ secrets[format('AZ_B2C_APP_{0}', inputs.environment)] || 'dummy-adb2c' }}"
-      azure-shared-subscription-id: "${{ secrets.AZ_SHARED_SUBSCRIPTION_ID || 'dummy-subid' }}"
-      slack-webhook-url: "${{ secrets[format('SLACK_WEBHOOK_URL_{0}', inputs.environment)] || 'dummy-slack' }}"
+      github-token: ${{ secrets.BOT_GITHUB || 'dummy-github-token' }}
+      azure-credentials-env: ${{ secrets[format('AZ_SP_INFRA_CREDS_{0}', inputs.environment)] || 'dummy-az-env' }}
+      azure-credentials-adb2c: ${{ secrets[format('AZ_B2C_APP_{0}', inputs.environment)] || 'dummy-az-adb2c' }}
+      azure-shared-subscription-id: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID || 'dummy-subid' }}
+      slack-webhook-url: ${{ secrets[format('SLACK_WEBHOOK_URL_{0}', inputs.environment)] || 'dummy-slack' }}
     with:
       team: greenlane
       environment: ${{ inputs.environment }}
