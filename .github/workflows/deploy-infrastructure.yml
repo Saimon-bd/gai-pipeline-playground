@@ -33,7 +33,7 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      result: ${{ github.event_name == 'workflow_dispatch' && steps.set.outputs.input || steps.filter.outputs.changes }}
+      result: ${{ github.event_name == 'workflow_dispatch' && steps.set.outputs.input || steps.filter.outputs.apim }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -42,7 +42,7 @@ jobs:
           fetch-depth: 0
 
       - name: Filter Paths (auto mode)
-        if: github.event_name != 'workflow_dispatch'
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         id: filter
         uses: dorny/paths-filter@v3
         with:
@@ -50,22 +50,23 @@ jobs:
 
       - name: Debug Filter Output
         if: ${{ github.event_name != 'workflow_dispatch' }}
-        run: echo ${{ toJson(steps.filter.outputs) }}
+        run: |
+          echo "Filter outputs: ${{ toJson(steps.filter.outputs) }}"
 
       - name: Set Path (manual mode)
-        if: github.event_name == 'workflow_dispatch'
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         id: set
         run: echo "input=[\"${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}\"]" >> $GITHUB_OUTPUT
 
       - name: Extract Env from Path
-        if: github.event_name != 'workflow_dispatch'
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         id: envmap
         run: |
-          path="${{ fromJson(steps.filter.outputs.changes)[0] }}"
+          path="${{ fromJson(steps.filter.outputs.apim)[0] }}"
           env=$(echo "$path" | cut -d'/' -f1)
           echo "env=$env" >> $GITHUB_OUTPUT
-          echo "Detected path: $path"
-          echo "Detected env: $env"
+          echo "Detected path=$path"
+          echo "Detected env=$env"
 
   cd:
     name: Terraform CD
