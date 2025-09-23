@@ -70,13 +70,26 @@ jobs:
               echo "url=" >> $GITHUB_OUTPUT
               ;;
           esac
-
+  
+      - name: Debug Slack Webhook
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+            echo "❌ Slack webhook URL is empty – check secrets!"
+            exit 1
+          else
+            echo "✅ Slack webhook URL set (length: ${#SLACK_WEBHOOK_URL})"
+          fi
+        env:
+          SLACK_WEBHOOK_URL: ${{ steps.slack.outputs.url }}
+  
       - name: Send notification to Slack
         run: |
           curl -X POST -H 'Content-type: application/json' \
             --data "{\"text\":\":rocket: Plan ready for *${{ inputs.environment }}*. Waiting for approval.\"}" \
-            "${{ steps.slack.outputs.url }}"
-  
+            "${SLACK_WEBHOOK_URL}"
+        env:
+          SLACK_WEBHOOK_URL: ${{ steps.slack.outputs.url }}
+
           
   terraform-apply:
     name: Terraform Apply (approval only)
