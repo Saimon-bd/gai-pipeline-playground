@@ -59,14 +59,16 @@ jobs:
         run: echo "input=[\"${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}\"]" >> $GITHUB_OUTPUT
 
       - name: Extract Env from Path
-        if: ${{ github.event_name != 'workflow_dispatch' }}
+        if: github.event_name != 'workflow_dispatch'
         id: envmap
         run: |
-          path="${{ fromJson(steps.filter.outputs.apim)[0] }}"
-          env=$(echo "$path" | cut -d'/' -f1)
+          changes='${{ steps.filter.outputs.changes }}'
+          echo "DEBUG Changes: $changes"
+          first=$(echo "$changes" | jq -r '.[0]')
+          env=$(echo "$first" | cut -d'/' -f1)
           echo "env=$env" >> $GITHUB_OUTPUT
-          echo "Detected path=$path"
-          echo "Detected env=$env"
+          echo "Detected path: $first"
+          echo "Detected env: $env"
 
   cd:
     name: Terraform CD
