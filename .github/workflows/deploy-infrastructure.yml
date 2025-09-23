@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       result: ${{ github.event_name == 'workflow_dispatch' && steps.set.outputs.input || steps.filter.outputs.changes }}
-      envname: ${{ steps.envmap.outputs.env }}
+      envname: ${{ steps.set.outputs.env || steps.envmap.outputs.env }}
       webhook: ${{ steps.envmap.outputs.webhook }}
     steps:
       - name: Checkout
@@ -83,10 +83,22 @@ jobs:
         if: github.event_name != 'workflow_dispatch' && steps.filter.outputs.changes == '[]'
         run: echo '::notice::No changes were detected in the tracked folders, skipping terraform CD job'
     
-      - name: Set Path
+      # workflow_dispatch হলে inputs.environment ব্যবহার করবে
+      - name: Set Path (manual dispatch)
         if: github.event_name == 'workflow_dispatch'
         id: set
-        run: echo 'input=["${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}"]' >> $GITHUB_OUTPUT
+        run: |
+          echo 'input=["${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}"]' >> $GITHUB_OUTPUT
+          echo "env=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+
+      # PR event হলে path থেকে env বের করবে (যেমন dev/stg/prd)
+      - name: Extract Env from Path
+        if: github.event_name != 'workflow_dispatch'
+        id: envmap
+        run: |
+          path="${{ fromJson(steps.filter.outputs.changes)[0] }}"
+          env=$(echo "$path" | cut -d'/' -f1)
+          echo "env=$env" >> $GITHUB_OUTPUT
       
   debug-condition:
     name: Debug Condition Inputs
@@ -109,7 +121,7 @@ jobs:
     uses: ./.github/workflows/terraform-cd.yml
     with:
       team: greenlane
-      environment: ${{ inputs.environment }}
+      environment: ${{ needs.paths.outputs.envname }}
       paths: ${{ needs.paths.outputs.result }}
       terraform-version: 1.6.3
-      region: ${{ inputs.environment == 'dev' && 'eastus2' || 'centralus' }}
+      region: ${{ needs.paths.outputs.envname == 'dev' && 'eastus2' || 'centralus' }}
