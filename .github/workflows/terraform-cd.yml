@@ -32,53 +32,23 @@ on:
 jobs:
   terraform-plan:
     name: Terraform Plan
-    runs-on:
-      group: linux-2core-${{ inputs.environment }}-${{ inputs.region }}-group
-    strategy:
-      matrix:
-        # Parse JSON array containing names of all filters matching any of changed files
-        path: ${{ fromJson(inputs.paths) }}
-    env:
-      TF_VAR_AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID }}
-      AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID }}
-    defaults:
-      run:
-        shell: bash
-        working-directory: "environments/${{ matrix.path }}"
-
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
-      - name: Set Environment Variables
-        uses: ./.github/workflows/azure-spn-secret-env
-        with:
-          creds-env: ${{ secrets.azure-credentials-env }}
-          creds-adb2c: ${{ secrets.azure-credentials-adb2c }}
-          environment: ${{ inputs.environment }}
+      - name: Fake Terraform Plan
+        run: echo "✅ Terraform plan completed (placeholder)"
 
-      - name: Configure git token
-        run: git config --global url."https://${{ secrets.github-token }}:@github.com/drivegreenlane/".insteadOf "https://github.com/drivegreenlane/"\
-
-      # Parse directory path into a usable name for artifact - substitutes '/' per '-'
-      - name: Get Service Name
-        id: service
-        run: | 
-          path=${{ matrix.path }}
-          echo "service_name=${path////-}" >> $GITHUB_ENV
-
-  
   terraform-apply:
     name: Terraform Apply
-    runs-on:
-      group: linux-2core-${{ inputs.environment }}-${{ inputs.region }}-group
+    runs-on: ubuntu-latest
     needs: [terraform-plan]
     environment: ${{ inputs.environment }}
     strategy:
       matrix:
-        # Parse JSON array containing names of all filters matching any of changed files
         path: ${{ fromJson(inputs.paths) }}
     defaults:
       run:
@@ -87,48 +57,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
-      - name: Set Environment Variables
-        uses: ./.github/workflows/azure-spn-secret-env
-        with:
-          creds-env: ${{ secrets.azure-credentials-env }}
-          creds-adb2c: ${{ secrets.azure-credentials-adb2c }}
-          environment: ${{ inputs.environment }}
+      - name: Wait for Approval
+        run: echo "⏳ Waiting for manual approval before apply..."
 
-      - name: Configure git token
-        run: git config --global url."https://${{ secrets.github-token }}:@github.com/drivegreenlane/".insteadOf "https://github.com/drivegreenlane/"\
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ inputs.terraform-version }}
-
-      - name: Terraform Init
-        id: init
-        run: terraform init -backend-config ${{ inputs.environment }}.backend.tfvars -upgrade
-
-      # Parse directory path into a usable name for artifact - substitutes '/' per '-'
-      - name: Get Service Name
-        id: service
-        run: |
-          path=${{ matrix.path }}
-          echo "service_name=${path////-}" >> $GITHUB_ENV
-
-      - name: Download Plan Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan-${{ inputs.team }}-${{ env.service_name }}-${{ github.run_number }}
-          path: environments/${{ matrix.path }}
-
-      - name: Terraform Apply
-        id: apply
-        env:
-          TF_VAR_AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
-          AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
-        run: terraform apply -auto-approve -input=false tfplan
+      - name: Fake Terraform Apply
+        run: echo "🚀 Terraform apply completed (placeholder)"
 
       - name: Upload TrustFramework Policy
         if: contains(matrix.path, 'customer-service/ad-b2c')
