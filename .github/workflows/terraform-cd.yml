@@ -46,19 +46,33 @@ jobs:
         run: |
           path=${{ matrix.path }}
           echo "service_name=${path////-}" >> $GITHUB_ENV
-
+          
   slack-notification:
     name: Notify Slack
     if: success()
     needs: [terraform-plan]
     runs-on: ubuntu-latest
     steps:
+      - name: Set Slack Webhook
+        id: slack
+        run: |
+          if [ "${{ inputs.environment }}" = "dev" ]; then
+            echo "url=${{ secrets.SLACK_WEBHOOK_URL_DEV }}" >> $GITHUB_OUTPUT
+          elif [ "${{ inputs.environment }}" = "stg" ]; then
+            echo "url=${{ secrets.SLACK_WEBHOOK_URL_STG }}" >> $GITHUB_OUTPUT
+          elif [ "${{ inputs.environment }}" = "prd" ]; then
+            echo "url=${{ secrets.SLACK_WEBHOOK_URL_PRD }}" >> $GITHUB_OUTPUT
+          else
+            echo "url=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Send notification to Slack
         run: |
           curl -X POST -H 'Content-type: application/json' \
             --data "{\"text\":\":rocket: Plan ready for *${{ inputs.environment }}*. Waiting for approval.\"}" \
-            "${{ secrets.SLACK_WEBHOOK_URL }}"
-
+            "${{ steps.slack.outputs.url }}"
+  
+          
   terraform-apply:
     name: Terraform Apply (approval only)
     runs-on: ubuntu-latest
