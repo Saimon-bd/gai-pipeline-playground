@@ -50,7 +50,7 @@ jobs:
 
       - name: Debug Filter Output
         if: github.event_name != 'workflow_dispatch'
-        run: echo "Filter outputs: ${{ toJson(steps.filter.outputs) }}"
+        run: echo ${{ toJson(steps.filter.outputs) }}
 
       - name: Set Path (manual mode)
         if: github.event_name == 'workflow_dispatch'
