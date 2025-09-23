@@ -49,8 +49,8 @@ jobs:
           filters: .github/file-filters.yml
 
       - name: Debug Filter Output
-        if: github.event_name != 'workflow_dispatch'
-        run: echo "Filter output: ${{ steps.filter.outputs.changes }}"
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: echo ${{ toJson(steps.filter.outputs) }}
 
       - name: Set Path (manual mode)
         if: github.event_name == 'workflow_dispatch'
