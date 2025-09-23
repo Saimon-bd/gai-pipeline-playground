@@ -56,21 +56,10 @@ jobs:
       - name: Set Slack Webhook
         id: slack
         run: |
-          case "${{ inputs.environment }}" in
-            dev)
-              echo "url=${{ secrets.SLACK_WEBHOOK_URL_DEV }}" >> $GITHUB_OUTPUT
-              ;;
-            stg)
-              echo "url=${{ secrets.SLACK_WEBHOOK_URL_STG }}" >> $GITHUB_OUTPUT
-              ;;
-            prd)
-              echo "url=${{ secrets.SLACK_WEBHOOK_URL_PRD }}" >> $GITHUB_OUTPUT
-              ;;
-            *)
-              echo "url=" >> $GITHUB_OUTPUT
-              ;;
-          esac
-  
+          echo "url=${SLACK_WEBHOOK}" >> $GITHUB_OUTPUT
+        env:
+          SLACK_WEBHOOK: ${{ inputs.environment == 'dev' && secrets.SLACK_WEBHOOK_URL_DEV || inputs.environment == 'stg' && secrets.SLACK_WEBHOOK_URL_STG || secrets.SLACK_WEBHOOK_URL_PRD }}
+
       - name: Debug Slack Webhook
         run: |
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
