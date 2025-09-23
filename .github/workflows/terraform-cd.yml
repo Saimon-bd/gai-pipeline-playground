@@ -6,14 +6,13 @@ on:
       github-token:
         required: true
       azure-credentials-env:
-        required: false   # dummy fallback
+        required: false
       azure-credentials-adb2c:
-        required: false   # dummy fallback
+        required: false
       azure-shared-subscription-id:
-        required: false   # dummy fallback
+        required: false
       slack-webhook-url:
-        required: false   # real one
-
+        required: false
     inputs:
       region:
         required: true
@@ -63,6 +62,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Extract Environment from Path
+        id: extract
+        run: |
+          echo "Matrix path: ${{ matrix.path }}"
+          envName=$(echo "${{ matrix.path }}" | cut -d'/' -f1)
+          echo "envName=$envName" >> $GITHUB_OUTPUT
+          echo "Extracted env=$envName"
+
       - name: Wait for Approval
         run: echo "⏳ Waiting for manual approval before apply..."
 
@@ -72,7 +79,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "⏳ *Terraform Apply is waiting for approval* \nEnvironment: `${{ inputs.environment }}` \nPath: `${{ matrix.path }}`"
+              "text": "⏳ *Terraform Apply is waiting for approval* \nEnvironment: `${{ steps.extract.outputs.envName }}` \nPath: `${{ matrix.path }}`"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.slack-webhook-url || 'https://hooks.slack.com/services/dummy' }}
