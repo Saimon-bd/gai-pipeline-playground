@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: Charging Service API - Updated
-  version: "1.0.1"
-  description: "Modified for auto-deploy testing - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+  title: Charging Service API - V3 with Approval Test
+  version: "1.0.3"
+  description: "Testing approval workflow with environment-specific deployments"
 paths:
   /charge:
     post:
