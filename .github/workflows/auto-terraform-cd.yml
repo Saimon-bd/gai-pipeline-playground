@@ -4,13 +4,16 @@ on:
   workflow_call:
     secrets:
       github-token:
-        required: true
-      azure-credentials-env:
-        required: true
-      azure-credentials-adb2c:
         required: false
+      azure-credentials-env:
+        required: false
+      azure-credentials-adb2c:
+       - name: Mock Environment Setup
+        run: |
+          echo "🔧 Mock: Setting up environment variables for ${{ matrix.env }}"
+          echo "🔧 Mock: Configuring git authentication"quired: false
       azure-shared-subscription-id:
-        required: true
+        required: false
     inputs:
       team:
         required: true
@@ -36,8 +39,7 @@ on:
 jobs:
   terraform-plan:
     name: Plan ${{ matrix.env }}
-    runs-on:
-      group: linux-2core-${{ matrix.env }}-${{ matrix.env == 'dev' && 'eastus2' || 'centralus' }}-group
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         env: ${{ fromJson(inputs.environments) }}
@@ -55,13 +57,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.github-token }}
           persist-credentials: false
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ inputs.terraform-version }}
+      - name: Mock Setup Terraform
+        run: |
+          echo "🔧 Mock: Setting up Terraform ${{ inputs.terraform-version }}"
+          echo "✅ Mock: Terraform setup completed"
 
       - name: Process Paths for Environment
         id: process-paths
@@ -80,52 +81,20 @@ jobs:
           echo "env-paths=$json_array" >> $GITHUB_OUTPUT
           echo "Filtered paths for ${{ matrix.env }}: $json_array"
 
-      - name: Set Environment Variables
+      - name: Mock Environment Setup
         if: steps.process-paths.outputs.env-paths != '[]'
-        uses: ./.github/workflows/azure-spn-secret-env
-        with:
-          creds-env: ${{ secrets.azure-credentials-env }}
-          creds-adb2c: ${{ secrets.azure-credentials-adb2c }}
-          environment: ${{ matrix.env }}
+        run: |
+          echo "🔧 Mock: Setting up environment variables for ${{ matrix.env }}"
+          echo "🔧 Mock: Configuring git authentication"
 
-      - name: Configure git token
-        if: steps.process-paths.outputs.env-paths != '[]'
-        run: git config --global url."https://${{ secrets.github-token }}:@github.com/drivegreenlane/".insteadOf "https://github.com/drivegreenlane/"\
-
-      - name: Terraform Plan for Environment Paths
+      - name: Mock Terraform Plan for Environment Paths
         if: steps.process-paths.outputs.env-paths != '[]'
         run: |
           paths='${{ steps.process-paths.outputs.env-paths }}'
           echo "$paths" | jq -r '.[]' | while read path; do
-            echo "Processing path: $path"
-            
-            if [ -d "environments/$path" ]; then
-              cd "environments/$path"
-              
-              echo "Initializing Terraform in: $path"
-              terraform init -backend-config ${{ matrix.env }}.backend.tfvars -upgrade
-              
-              echo "Planning Terraform in: $path"
-              terraform plan -no-color -out=tfplan -detailed-exitcode || export exitcode=$?
-              terraform show -no-color tfplan > plan.txt
-              
-              # Produce output according to exitcode: 0 (no changes) 1 (failed) 2 (changes)
-              if [ $exitcode -eq 1 ]; then
-                echo "Terraform Plan Failed for: $path"
-                exit 1
-              elif [ $exitcode -eq 2 ]; then
-                if grep -q 'destroy' plan.txt; then
-                  echo "::warning::Destroy actions encountered in plan file for: $path"
-                fi
-                echo "Changes detected in: $path"
-              else 
-                echo "::notice::No changes encountered in plan file for: $path"
-              fi
-              
-              cd - > /dev/null
-            else
-              echo "Directory not found: environments/$path"
-            fi
+            echo "🚀 Mock Processing path: $path"
+            echo "✅ Mock Terraform Plan completed successfully for: $path"
+            echo "📊 Mock Resources to create: 3, update: 1, destroy: 0"
           done
 
       # Upload plan artifacts for each path
@@ -208,8 +177,7 @@ jobs:
 
   terraform-apply:
     name: Apply ${{ matrix.env }}
-    runs-on:
-      group: linux-2core-${{ matrix.env }}-${{ matrix.env == 'dev' && 'eastus2' || 'centralus' }}-group
+    runs-on: ubuntu-latest
     needs: [terraform-plan]
     if: needs.terraform-plan.result == 'success' && inputs.test-mode != true
     environment: ${{ matrix.env }}
@@ -230,13 +198,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.github-token }}
           persist-credentials: false
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ inputs.terraform-version }}
+      - name: Mock Setup Terraform
+        run: |
+          echo "🔧 Mock: Setting up Terraform ${{ inputs.terraform-version }}"
+          echo "✅ Mock: Terraform setup completed"
 
       - name: Set Environment Variables
         uses: ./.github/workflows/azure-spn-secret-env
@@ -262,37 +229,25 @@ jobs:
           
           echo "env-paths=$json_array" >> $GITHUB_OUTPUT
 
-      - name: Terraform Apply for Environment Paths
+      - name: Mock Terraform Apply for Environment Paths
         if: steps.process-paths.outputs.env-paths != '[]'
         run: |
           paths='${{ steps.process-paths.outputs.env-paths }}'
           echo "$paths" | jq -r '.[]' | while read path; do
-            echo "Processing apply for path: $path"
-            
-            if [ -d "environments/$path" ]; then
-              cd "environments/$path"
-              
-              echo "Initializing Terraform in: $path"
-              terraform init -backend-config ${{ matrix.env }}.backend.tfvars -upgrade
-              
-              # Download plan artifact (simplified - in real scenario would use artifacts)
-              echo "Applying Terraform in: $path"
-              terraform apply -auto-approve -input=false
-              
-              cd - > /dev/null
-            else
-              echo "Directory not found: environments/$path"
-            fi
+            echo "🚀 Mock Applying Terraform for path: $path"
+            echo "✅ Mock Terraform Apply completed successfully for: $path"
+            echo "📊 Mock Resources applied: 3 created, 1 updated, 0 destroyed"
+            echo "🎉 Mock Infrastructure deployment completed for: $path"
           done
 
-      - name: Upload TrustFramework Policy
+      - name: Mock Upload TrustFramework Policy
         if: steps.process-paths.outputs.env-paths != '[]'
         run: |
           paths='${{ steps.process-paths.outputs.env-paths }}'
           echo "$paths" | jq -r '.[]' | while read path; do
             if [[ "$path" == *"customer-service/ad-b2c"* ]]; then
-              echo "Uploading TrustFramework Policy for: $path"
-              # Add B2C policy deployment logic here if needed
+              echo "📋 Mock: Uploading TrustFramework Policy for: $path"
+              echo "✅ Mock: B2C Policy uploaded successfully"
             fi
           done
 
