@@ -27,6 +27,7 @@ on:
       environment:
         required: true
         type: string
+        description: 'JSON array of environments to deploy'
       terraform-version:
         required: true
         type: string
@@ -63,14 +64,18 @@ jobs:
 
       - name: Slack - Waiting for Approval
         run: |
+          echo "🔍 Debug: Environment = ${{ matrix.environment }}"
           WEBHOOK_URL=""
           case "${{ matrix.environment }}" in
-            "dev") WEBHOOK_URL="${{ secrets.slack-webhook-url-dev }}" ;;
-            "stg") WEBHOOK_URL="${{ secrets.slack-webhook-url-stg }}" ;;  
-            "prd") WEBHOOK_URL="${{ secrets.slack-webhook-url-prd }}" ;;
+            "dev") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_DEV }}" ;;
+            "stg") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_STG }}" ;;  
+            "prd") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_PRD }}" ;;
           esac
           
+          echo "🔍 Debug: WEBHOOK_URL length = ${#WEBHOOK_URL}"
+          
           if [ ! -z "$WEBHOOK_URL" ]; then
+            echo "✅ Sending Slack notification for ${{ matrix.environment }}"
             curl -X POST -H 'Content-type: application/json' \
               --data "{
                 \"text\":\"Waiting for APIM apply approval - ${{ matrix.environment }}\",
@@ -95,6 +100,10 @@ jobs:
                 ]
               }" \
               "$WEBHOOK_URL"
+            echo "✅ Slack notification sent successfully"
+          else
+            echo "❌ No webhook URL found for environment: ${{ matrix.environment }}"
+            echo "💡 Please add SLACK_WEBHOOK_URL_$(echo ${{ matrix.environment }} | tr '[:lower:]' '[:upper:]') secret"
           fi
 
       - name: Fake Terraform Apply

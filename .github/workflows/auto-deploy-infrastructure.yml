@@ -42,7 +42,10 @@ jobs:
             envs=$(echo "$changes" | jq -r '.[]' | cut -d'/' -f1 | sort -u)
             echo "Unique envs: $envs"
 
-            echo "envs=$(echo $envs | tr ' ' ',')" >> $GITHUB_OUTPUT
+            # Convert to JSON array format
+            json_array=$(echo $envs | tr ' ' '\n' | jq -R . | jq -s .)
+            echo "JSON array: $json_array"
+            echo "envs=$json_array" >> $GITHUB_OUTPUT
 
       - name: Extract unique services
         id: extract-services
@@ -75,6 +78,6 @@ jobs:
       slack-webhook-url-prd: ${{ secrets.SLACK_WEBHOOK_URL_PRD }}
     with:
       team: greenlane
-      environment: ${{ format('["{0}"]', needs.paths.outputs.envs) }}
+      environment: ${{ needs.paths.outputs.envs }}
       terraform-version: 1.6.3
       region: ${{ contains(needs.paths.outputs.envs, 'dev') && 'eastus2' || 'centralus' }}

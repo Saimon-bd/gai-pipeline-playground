@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: Public API PRD - Production Update  
-  version: "1.0.1"
-  description: "Production environment update for final testing"
+  title: Public API PRD - Production Update V2  
+  version: "1.0.2"
+  description: "Production environment update - Testing approval workflow with proper environment separation"
 paths:
   /api:
     get:
