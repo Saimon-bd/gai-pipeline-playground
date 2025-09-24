@@ -35,8 +35,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        environment: ${{ fromJson(inputs.environment) }}
+        # Handle both manual (string) and auto (JSON array) inputs
+        environment: ${{ startsWith(inputs.environment, '[') && fromJson(inputs.environment) || fromJson(format('["{0}"]', inputs.environment)) }}
     steps:
+      - name: Debug Environment Input
+        run: |
+          echo "🔍 Debug: inputs.environment = '${{ inputs.environment }}'"
+          echo "🔍 Debug: Matrix environment = '${{ matrix.environment }}'"
       - name: Checkout
         uses: actions/checkout@v5
         with:
@@ -111,7 +116,8 @@ jobs:
     needs: [terraform-plan]
     strategy:
       matrix:
-        environment: ${{ fromJson(inputs.environment) }}
+        # Handle both manual (string) and auto (JSON array) inputs
+        environment: ${{ startsWith(inputs.environment, '[') && fromJson(inputs.environment) || fromJson(format('["{0}"]', inputs.environment)) }}
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout
