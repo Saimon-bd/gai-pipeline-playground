@@ -1,4 +1,4 @@
-name: Deploy Infrastructure
+name: Deploy Infrastructure (Manual)
 on:
   workflow_dispatch:
     inputs:
