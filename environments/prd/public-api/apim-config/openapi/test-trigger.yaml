@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: Public API PRD - MOCK WORKFLOW TEST
-  version: "3.1.0"
-  description: "Testing mock workflow with GitHub runners, mock terraform, and Slack notifications"
+  title: Public API PRD - YAML SYNTAX FIXED
+  version: "3.2.0"
+  description: "Testing workflow with fixed YAML syntax - should work now!"
 paths:
   /api:
     get:
