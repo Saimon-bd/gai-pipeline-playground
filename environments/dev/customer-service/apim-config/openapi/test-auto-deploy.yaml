@@ -1,11 +1,12 @@
-# Test OpenAPI configuration for auto-deployment workflow
+# Test OpenAPI configuration for auto-deployment workflow  
 # This file will trigger auto-deploy-infrastructure.yml when merged to main
+# UPDATED for second test run
 
 openapi: 3.0.0
 info:
-  title: Customer Service Test API
-  description: Test API configuration to validate auto-deployment pipeline
-  version: "1.0.0"
+  title: Customer Service Test API - Updated
+  description: Test API configuration to validate auto-deployment pipeline - Second iteration
+  version: "1.0.2"
   
 servers:
   - url: https://api-dev.greenlane.com/customer

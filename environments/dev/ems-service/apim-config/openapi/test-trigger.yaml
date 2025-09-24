@@ -1,10 +1,18 @@
 openapi: 3.0.0
 info:
-  title: EMS Service API  
-  version: "1.0.0"
+  title: EMS Service API - Updated  
+  version: "1.0.1"
+  description: "Energy management system - Modified for testing"
 paths:
   /energy:
     get:
+      summary: Get energy data
       responses:
         '200':
           description: Success
+  /status:
+    get:
+      summary: Check EMS status
+      responses:
+        '200':
+          description: EMS is operational

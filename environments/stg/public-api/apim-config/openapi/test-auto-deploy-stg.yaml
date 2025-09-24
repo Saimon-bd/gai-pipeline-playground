@@ -1,11 +1,11 @@
 # Test OpenAPI configuration for STG environment
-# Multi-environment deployment test
+# Multi-environment deployment test - UPDATED
 
 openapi: 3.0.0
 info:
-  title: Public API Test - STG
-  description: Staging environment test for auto-deployment pipeline  
-  version: "1.0.1"
+  title: Public API Test - STG Updated
+  description: Staging environment test for auto-deployment pipeline - Second run  
+  version: "1.0.2"
   
 servers:
   - url: https://api-stg.greenlane.com/public

@@ -1,10 +1,20 @@
 openapi: 3.0.0
 info:
-  title: Public API PRD  
-  version: "1.0.0"
+  title: Public API PRD - Production Update  
+  version: "1.0.1"
+  description: "Production environment update for final testing"
 paths:
   /api:
     get:
+      summary: Main API endpoint
       responses:
         '200':
           description: Success
+        '500':
+          description: Server error
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service healthy
