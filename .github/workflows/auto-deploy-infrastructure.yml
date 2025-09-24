@@ -79,4 +79,4 @@ jobs:
       paths: ${{ needs.paths.outputs.result }}
       environments: ${{ needs.paths.outputs.envs }}
       terraform-version: 1.6.3
-      test-mode: true
+      test-mode: false
