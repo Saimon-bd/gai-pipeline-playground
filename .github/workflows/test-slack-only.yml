@@ -1,0 +1,72 @@
+name: Test Slack Notifications Only
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test (dev/stg/prd)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - stg
+          - prd
+
+jobs:
+  test-slack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Test Slack Notification
+        run: |
+          echo "Testing Slack notification for environment: ${{ inputs.environment }}"
+          
+          # Get webhook URL based on environment
+          case "${{ inputs.environment }}" in
+            "dev")
+              WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_DEV }}"
+              ;;
+            "stg") 
+              WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_STG }}"
+              ;;
+            "prd")
+              WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_PRD }}"
+              ;;
+          esac
+          
+          # Send test notification
+          curl -X POST -H 'Content-type: application/json' \
+            -d '{
+              "text": "🧪 *Test Notification*",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn", 
+                    "text": "🧪 *Slack Integration Test*\n\n*Environment:* `${{ inputs.environment }}`\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Triggered by:* ${{ github.actor }}\n*Test Time:* $(date)\n\n✅ *This is a manual test of Slack webhook integration*"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {"type": "plain_text", "text": "View Test Run"},
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "🧪 *TEST NOTIFICATION* - Slack webhook validation"
+                    }
+                  ]
+                }
+              ]
+            }' \
+            "$WEBHOOK_URL"
+          
+          echo "✅ Test notification sent to ${{ inputs.environment }} channel"

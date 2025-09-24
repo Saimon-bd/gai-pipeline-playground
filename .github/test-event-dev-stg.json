@@ -2,19 +2,26 @@
   "pull_request": {
     "number": 2,
     "head": { "ref": "feature-stg" },
-    "base": { "ref": "main" }
+    "base": { "ref": "main" },
+    "merged": true
   },
   "repository": {
     "full_name": "Saimon-bd/gai-pipeline-playground"
   },
-  "files": [
+  "commits": [
     {
-      "filename": "environments/dev/public-api/apim-config/openapi/test.yaml",
-      "status": "added"
+      "id": "dev-001",
+      "message": "Add test.yaml in dev public-api",
+      "added": ["environments/dev/public-api/apim-config/openapi/test.yaml"],
+      "modified": [],
+      "removed": []
     },
     {
-      "filename": "environments/stg/customer-service/apim-config/openapi/test.yaml",
-      "status": "modified"
+      "id": "stg-001",
+      "message": "Modify test.yaml in stg customer-service",
+      "added": [],
+      "modified": ["environments/stg/customer-service/apim-config/openapi/test.yaml"],
+      "removed": []
     }
   ]
 }
