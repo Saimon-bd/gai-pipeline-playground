@@ -4,9 +4,9 @@
 
 openapi: 3.0.0
 info:
-  title: Customer Service Test API - Updated
-  description: Test API configuration to validate auto-deployment pipeline - Second iteration
-  version: "1.0.2"
+  title: Customer Service Test API - COMPREHENSIVE WORKFLOW
+  description: Testing new auto-terraform-cd.yml with multi-environment support
+  version: "3.0.0"
   
 servers:
   - url: https://api-dev.greenlane.com/customer
