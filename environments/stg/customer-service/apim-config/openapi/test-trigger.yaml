@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: Customer Service STG - V2 Approval Test
-  version: "1.0.2"
-  description: "Staging environment - Testing manual approval workflow"
+  title: Customer Service STG - V3 Final Test
+  version: "1.0.3"
+  description: "Staging environment - Final test after JSON fix - Ready for approval workflow"
 paths:
   /customers:
     get:

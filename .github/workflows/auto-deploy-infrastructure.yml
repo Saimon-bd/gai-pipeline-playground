@@ -42,8 +42,8 @@ jobs:
             envs=$(echo "$changes" | jq -r '.[]' | cut -d'/' -f1 | sort -u)
             echo "Unique envs: $envs"
 
-            # Convert to JSON array format
-            json_array=$(echo $envs | tr ' ' '\n' | jq -R . | jq -s .)
+            # Convert to compact JSON array format  
+            json_array=$(echo $envs | tr ' ' '\n' | jq -R . | jq -s -c .)
             echo "JSON array: $json_array"
             echo "envs=$json_array" >> $GITHUB_OUTPUT
 
