@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: Public API PRD - COMPREHENSIVE WORKFLOW TEST
-  version: "3.0.0"
-  description: "Testing new auto-terraform-cd.yml with proper Slack notifications and approval flow"
+  title: Public API PRD - MOCK WORKFLOW TEST
+  version: "3.1.0"
+  description: "Testing mock workflow with GitHub runners, mock terraform, and Slack notifications"
 paths:
   /api:
     get:
