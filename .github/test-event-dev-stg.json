@@ -1,0 +1,20 @@
+{
+  "pull_request": {
+    "number": 2,
+    "head": { "ref": "feature-stg" },
+    "base": { "ref": "main" }
+  },
+  "repository": {
+    "full_name": "Saimon-bd/gai-pipeline-playground"
+  },
+  "files": [
+    {
+      "filename": "environments/dev/public-api/apim-config/openapi/test.yaml",
+      "status": "added"
+    },
+    {
+      "filename": "environments/stg/customer-service/apim-config/openapi/test.yaml",
+      "status": "modified"
+    }
+  ]
+}

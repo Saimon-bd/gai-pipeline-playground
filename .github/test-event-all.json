@@ -1,0 +1,25 @@
+{
+  "pull_request": {
+    "number": 4,
+    "merged": true,
+    "head": { "ref": "feature-all-test" },
+    "base": { "ref": "main" }
+  },
+  "repository": { "full_name": "Saimon-bd/gai-pipeline-playground" },
+  "commits": [
+    {
+      "id": "all123",
+      "message": "All env changes",
+      "added": [
+        "environments/dev/charging-service/apim-config/openapi/test1.yaml",
+        "environments/dev/customer-service/apim-config/openapi/test2.yaml",
+        "environments/dev/public-api/apim-config/openapi/test3.yaml",
+        "environments/stg/cross-service/apim-config/openapi/test4.yaml",
+        "environments/stg/public-api/apim-config/openapi/test5.yaml",
+        "environments/prd/charging-service/apim-config/openapi/test6.yaml"
+      ],
+      "modified": [],
+      "removed": []
+    }
+  ]
+}

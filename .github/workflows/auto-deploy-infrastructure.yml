@@ -1,0 +1,57 @@
+name: Deploy Infrastructure
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+    paths:
+      - 'environments/**/apim-config/openapi/*.yaml'
+
+jobs:
+  paths:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      changes: ${{ steps.filter.outputs.changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Filter Paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: '.github/file-filters.yml'
+          base: ''
+          list-files: shell #need remove this after testing
+
+      - name: Show Changes
+        run: "echo 'Changed filters- ${{ steps.filter.outputs.changes }}'"
+
+      - name: Extract unique envs
+        id: extract-envs
+        run: |
+            changes='${{ steps.filter.outputs.changes }}'
+            echo "Raw changes: $changes"
+
+            envs=$(echo "$changes" | jq -r '.[]' | cut -d'/' -f1 | sort -u)
+            echo "Unique envs: $envs"
+
+            echo "envs=$(echo $envs | tr ' ' ',')" >> $GITHUB_OUTPUT
+
+      - name: Extract unique services
+        id: extract-services
+        run: |
+            changes='${{ steps.filter.outputs.changes }}'
+            echo "Raw changes: $changes"
+
+            services=$(echo "$changes" | jq -r '.[]' | cut -d'/' -f2 | sort -u)
+            echo "Unique services: $services"
+
+            echo "services=$(echo $services | tr ' ' ',')" >> $GITHUB_OUTPUT
+
+      - name: Show parsed outputs
+        run: |
+            echo "env: [${{ steps.extract-envs.outputs.envs }}]"
+            echo "service: [${{ steps.extract-services.outputs.services }}]"

@@ -2,9 +2,7 @@ name: Deploy Infrastructure
 
 on:
   pull_request:
-    types: [closed]
-    branches:
-      - main
+    types: [ closed ]
     paths:
       - 'environments/**/apim-config/openapi/*.yaml'
 
@@ -14,74 +12,78 @@ on:
         description: 'Environment'
         required: true
         type: choice
-        options: [dev, stg, prd]
+        options:
+          - dev
+          - stg
+          - prd
 
       service:
         description: 'Service'
         required: true
         type: choice
-        options: [cross-service, charging-service, customer-service, ems-service, ocpi-service, frontend, public-api, partner-api]
+        options:
+          - cross-service
+          - charging-service
+          - customer-service
+          - ems-service
+          - ocpi-service
+          - frontend
+          - public-api
+          - partner-api
 
       config:
         description: 'Configuration'
         required: false
         type: choice
-        options: [infrastructure, apim-config, psql-config, ad-b2c, " "]
+        options:
+          - infrastructure
+          - apim-config
+          - psql-config
+          - ad-b2c
+          - " "
 
 jobs:
   paths:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: [ ubuntu-latest ]
     outputs:
-      result: ${{ steps.envmap.outputs.envs }}
+      result: ${{ github.event_name == 'workflow_dispatch' && steps.set.outputs.input || steps.filter.outputs.changes }} 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
           fetch-depth: 0
-
-      - name: Filter Paths (auto mode)
+      
+      - name: Filter Paths
         if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@ebc4d7e9ebcb0b1eb21480bb8f43113e996ac77a # v3
         id: filter
-        uses: dorny/paths-filter@v3
         with:
           filters: .github/file-filters.yml
 
-      - name: Debug Filter Output
-        if: github.event_name != 'workflow_dispatch'
-        run: echo ${{ toJson(steps.filter.outputs) }}
-
-      - name: Set Path (manual mode)
+      - name: Check Changes
+        if: github.event_name != 'workflow_dispatch' && steps.filter.outputs.changes == '[]'
+        run: echo '::notice::No changes were detected in the tracked folders, skiping terraform CD job'
+    
+      - name: Set Path
         if: github.event_name == 'workflow_dispatch'
         id: set
-        run: |
-          input="[\"${{ inputs.environment }}\"]"
-          echo "envs=$input" >> $GITHUB_OUTPUT
-
-      - name: Extract Unique Envs (auto mode)
-        if: github.event_name != 'workflow_dispatch'
-        id: envmap
-        run: |
-          changes='${{ steps.filter.outputs.changes }}'
-          echo "DEBUG Changes: $changes"
-
-          envs=$(echo "$changes" | jq -r '.[]' | cut -d'/' -f1 | sort -u | jq -R -s -c 'split("\n")[:-1]')
-          echo "envs=$envs" >> $GITHUB_OUTPUT
-          echo "Unique envs: $envs"
+        run: echo 'input=["${{ inputs.environment }}/${{ inputs.service }}/${{ inputs.config }}"]' >> $GITHUB_OUTPUT
 
   cd:
     name: Terraform CD
-    if: ${{ (needs.paths.outputs.result != '[]' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch' }}
+    if: ${{ needs.paths.outputs.result != '[]'  && github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'}}
     needs: paths
     uses: ./.github/workflows/terraform-cd.yml
     secrets: 
-      github-token: ${{ secrets.BOT_GITHUB || 'dummy-github-token' }}
-      azure-credentials-env: ${{ secrets[format('AZ_SP_INFRA_CREDS_{0}', inputs.environment)] || 'dummy-az-env' }}
-      azure-credentials-adb2c: ${{ secrets[format('AZ_B2C_APP_{0}', inputs.environment)] || 'dummy-az-adb2c' }}
-      azure-shared-subscription-id: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID || 'dummy-subid' }}
+      github-token: ${{ secrets.BOT_GITHUB }}
+      azure-credentials-env: ${{ secrets[format('AZ_SP_INFRA_CREDS_{0}', inputs.environment)] }}
+      azure-credentials-adb2c: ${{ secrets[format('AZ_B2C_APP_{0}', inputs.environment)] }}
+      azure-shared-subscription-id: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID }}
     with:
       team: greenlane
-      environment: ${{ needs.paths.outputs.result }}
+      environment: ${{ inputs.environment }}
+      paths: ${{ needs.paths.outputs.result }}
       terraform-version: 1.6.3
-      region: ${{ needs.paths.outputs.result == 'dev' && 'eastus2' || 'centralus' }}
+      region: ${{ inputs.environment == 'dev' && 'eastus2' || 'centralus' }}
