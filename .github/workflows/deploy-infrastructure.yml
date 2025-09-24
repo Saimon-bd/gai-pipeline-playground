@@ -1,5 +1,4 @@
 name: Deploy Infrastructure
-
 on:
   workflow_dispatch:
     inputs:
@@ -68,7 +67,7 @@ jobs:
 
   cd:
     name: Terraform CD
-    if: ${{ needs.paths.outputs.result != '[]'  && github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'}}
+    if: ${{ needs.paths.outputs.result != '[]' }}
     needs: paths
     uses: ./.github/workflows/terraform-cd.yml
     secrets: 

@@ -1,0 +1,41 @@
+# Test OpenAPI configuration for auto-deployment workflow  
+# This file will trigger auto-deploy-infrastructure.yml when merged to main
+# UPDATED for second test run
+
+openapi: 3.0.0
+info:
+  title: Customer Service Test API - Updated
+  description: Test API configuration to validate auto-deployment pipeline - Second iteration
+  version: "1.0.2"
+  
+servers:
+  - url: https://api-dev.greenlane.com/customer
+    description: Development environment
+    
+paths:
+  /test:
+    get:
+      summary: Test endpoint for auto-deploy validation
+      description: This endpoint is used to test the auto-deployment workflow
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Auto-deploy workflow test successful"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  environment:
+                    type: string
+                    example: "dev"
+
+# Auto-deploy workflow test - Created: $(Get-Date)
+# Expected behavior: This change should trigger auto-deploy-infrastructure.yml
+# Target environment: dev
+# Target service: customer-service

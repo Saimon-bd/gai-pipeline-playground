@@ -1,0 +1,14 @@
+openapi: 3.0.0
+info:
+  title: Charging Service API - Updated
+  version: "1.0.1"
+  description: "Modified for auto-deploy testing - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+paths:
+  /charge:
+    post:
+      summary: Create charging session
+      responses:
+        '200':
+          description: Success
+        '400':
+          description: Bad request

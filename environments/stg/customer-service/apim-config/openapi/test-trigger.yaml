@@ -1,0 +1,24 @@
+openapi: 3.0.0
+info:
+  title: Customer Service STG - Updated
+  version: "1.0.1"
+  description: "Staging environment update for testing"
+paths:
+  /customers:
+    get:
+      summary: List customers
+      responses:
+        '200':
+          description: Success
+  /customers/{id}:
+    get:
+      summary: Get customer by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Customer found
