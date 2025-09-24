@@ -4,9 +4,9 @@
 
 openapi: 3.0.0
 info:
-  title: Customer Service Test API - OUTPUT FORMAT FIXED DEV
-  description: Testing workflow with fixed output format in DEV environment
-  version: "3.3.0"
+  title: Customer Service Test API - APPROVAL TEST DEV
+  description: Testing terraform-apply jobs with environment approvals in DEV
+  version: "4.0.0"
   
 servers:
   - url: https://api-dev.greenlane.com/customer
