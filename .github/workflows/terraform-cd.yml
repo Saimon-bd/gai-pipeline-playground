@@ -64,28 +64,43 @@ jobs:
 
       - name: Slack - Waiting for Approval
         run: |
-          echo "🔍 Debug: Environment = ${{ matrix.environment }}"
-          echo "🔍 Debug: Input environment = ${{ inputs.environment }}"
+          echo "🔍 Debug: Environment = '${{ matrix.environment }}'"
+          echo "🔍 Debug: Input environment = '${{ inputs.environment }}'"
+          
+          MATRIX_ENV="${{ matrix.environment }}"
+          UPPER_ENV=$(echo "$MATRIX_ENV" | tr '[:lower:]' '[:upper:]')
+          LOWER_ENV=$(echo "$MATRIX_ENV" | tr '[:upper:]' '[:lower:]')
+          
+          echo "🔍 Debug: Case variations:"
+          echo "  Original: [$MATRIX_ENV]"
+          echo "  Uppercase: [$UPPER_ENV]" 
+          echo "  Lowercase: [$LOWER_ENV]"
+          echo "  Length: ${#MATRIX_ENV}"
           WEBHOOK_URL=""
-          case "${{ matrix.environment }}" in
+          # Try both lowercase and uppercase matching
+          case "$LOWER_ENV" in
             "dev") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_DEV }}" ;;
             "stg") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_STG }}" ;;  
             "prd") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_PRD }}" ;;
+            *) 
+              echo "❌ No case match for: [$MATRIX_ENV]"
+              echo "   Tried lowercase: [$LOWER_ENV]"
+              ;;
           esac
           
           echo "🔍 Debug: WEBHOOK_URL length = ${#WEBHOOK_URL}"
           
           if [ ! -z "$WEBHOOK_URL" ]; then
-            echo "✅ Sending Slack notification for ${{ matrix.environment }}"
+            echo "✅ Sending Slack notification for $LOWER_ENV (original: $MATRIX_ENV)"
             curl -X POST -H 'Content-type: application/json' \
               --data "{
-                \"text\":\"Waiting for APIM apply approval - ${{ matrix.environment }}\",
+                \"text\":\"Waiting for APIM apply approval - $LOWER_ENV\",
                 \"blocks\":[
                   {
                     \"type\":\"section\",
                     \"text\":{
                       \"type\":\"mrkdwn\",
-                      \"text\":\"*Environment:* ${{ matrix.environment }}\\n*Repository:* ${{ github.repository }}\\n*Triggered by:* ${{ github.actor }}\\n\\nWaiting for APIM apply approval.\"
+                      \"text\":\"*Environment:* $LOWER_ENV\\n*Repository:* ${{ github.repository }}\\n*Triggered by:* ${{ github.actor }}\\n\\nWaiting for APIM apply approval.\"
                     }
                   },
                   {
