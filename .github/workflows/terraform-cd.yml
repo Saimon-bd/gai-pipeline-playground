@@ -65,6 +65,7 @@ jobs:
       - name: Slack - Waiting for Approval
         run: |
           echo "🔍 Debug: Environment = ${{ matrix.environment }}"
+          echo "🔍 Debug: Input environment = ${{ inputs.environment }}"
           WEBHOOK_URL=""
           case "${{ matrix.environment }}" in
             "dev") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_DEV }}" ;;
