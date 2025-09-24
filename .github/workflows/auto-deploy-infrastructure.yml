@@ -73,9 +73,6 @@ jobs:
       azure-credentials-env: ${{ secrets.AZ_SP_INFRA_CREDS_DEV }}
       azure-credentials-adb2c: ${{ secrets.AZ_B2C_APP_DEV }}
       azure-shared-subscription-id: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID }}
-      slack-webhook-url-dev: ${{ secrets.SLACK_WEBHOOK_URL_DEV }}
-      slack-webhook-url-stg: ${{ secrets.SLACK_WEBHOOK_URL_STG }}
-      slack-webhook-url-prd: ${{ secrets.SLACK_WEBHOOK_URL_PRD }}
     with:
       team: greenlane  
       environment: ${{ needs.paths.outputs.envs }}
