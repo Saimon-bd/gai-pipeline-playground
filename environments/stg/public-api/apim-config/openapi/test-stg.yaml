@@ -1,0 +1,34 @@
+openapi: 3.0.0
+info:
+  title: Public API STG - MOCK WORKFLOW TEST
+  version: "3.1.0"
+  description: "Testing mock workflow in STG environment with Slack notifications"
+paths:
+  /api:
+    get:
+      summary: Main API endpoint
+      responses:
+        '200':
+          description: Success
+        '500':
+          description: Server error
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service healthy
+  /test:
+    post:
+      summary: Test endpoint for STG environment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                test:
+                  type: string
+      responses:
+        '201':
+          description: Test created
