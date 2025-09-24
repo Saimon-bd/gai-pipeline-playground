@@ -2,94 +2,97 @@ name: terraform-cd
 
 on:
   workflow_call:
+    secrets:
+      github-token:
+        required: true
+      azure-credentials-env:
+        required: true
+      azure-credentials-adb2c:
+        required: false
+      azure-shared-subscription-id:
+        required: true
+      slack-webhook-url-dev:
+        required: false
+      slack-webhook-url-stg:
+        required: false
+      slack-webhook-url-prd:
+        required: false
     inputs:
       region:
-        required: false
+        required: true
         type: string
       team:
-        required: false
-        type: string
-      paths:
-        required: false
+        required: true
         type: string
       environment:
-        required: false
+        required: true
         type: string
       terraform-version:
-        required: false
+        required: true
         type: string
 
 jobs:
   terraform-plan:
-    name: Terraform Plan (simulated)
+    name: Terraform Plan
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        path: ${{ fromJson(inputs.paths) }}
-    defaults:
-      run:
-        shell: bash
-        working-directory: "environments/${{ matrix.path }}"
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Fake Terraform Plan
-        run: |
-          echo "This is a placeholder for Terraform Plan."
-          echo "Pretend we generated a plan for ${{ inputs.environment }} / ${{ matrix.path }}."
-          echo "plan-content" > plan.txt
-
-      - name: Get Service Name
-        id: service
-        run: |
-          path=${{ matrix.path }}
-          echo "service_name=${path////-}" >> $GITHUB_ENV
-
-      - name: Upload Fake Plan Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan-${{ inputs.team }}-${{ env.service_name }}-${{ github.run_number }}
-          path: plan.txt
-
-  slack-notification:
-    name: Notify Slack
-    if: success()
-    needs: [terraform-plan]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send notification to Slack
-        run: |
-          curl -X POST -H 'Content-type: application/json' \
-            --data "{\"text\":\":rocket: Plan ready for *${{ inputs.environment }}*. Waiting for approval.\"}" \
-            "${{ secrets.SLACK_WEBHOOK_URL }}"
+        run: echo "✅ Terraform plan completed (placeholder)"
 
   terraform-apply:
-    name: Terraform Apply (approval only)
+    name: Terraform Apply
     runs-on: ubuntu-latest
     needs: [terraform-plan]
-    environment: ${{ inputs.environment }} # approval required
     strategy:
       matrix:
-        path: ${{ fromJson(inputs.paths) }}
-    defaults:
-      run:
-        shell: bash
-        working-directory: environments/${{ matrix.path }}
-
+        environment: ${{ fromJson(inputs.environment) }}
+    environment: ${{ matrix.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download Fake Plan Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/checkout@v5
         with:
-          name: tfplan-${{ inputs.team }}-${{ env.service_name }}-${{ github.run_number }}
-          path: environments/${{ matrix.path }}
+          persist-credentials: false
 
-      - name: Simulate Apply
+      - name: Slack - Waiting for Approval
         run: |
-          echo "Simulating apply for ${{ inputs.environment }} / ${{ matrix.path }}"
-          cat plan.txt
-          echo "Apply complete."
+          WEBHOOK_URL=""
+          case "${{ matrix.environment }}" in
+            "dev") WEBHOOK_URL="${{ secrets.slack-webhook-url-dev }}" ;;
+            "stg") WEBHOOK_URL="${{ secrets.slack-webhook-url-stg }}" ;;  
+            "prd") WEBHOOK_URL="${{ secrets.slack-webhook-url-prd }}" ;;
+          esac
+          
+          if [ ! -z "$WEBHOOK_URL" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{
+                \"text\":\"⏳ *Approval Required*\",
+                \"blocks\":[
+                  {
+                    \"type\":\"section\",
+                    \"text\":{
+                      \"type\":\"mrkdwn\",
+                      \"text\":\"🔄 *Infrastructure Deployment Pending*\\n\\n*Environment:* \`${{ matrix.environment }}\`\\n*Repository:* ${{ github.repository }}\\n*Branch:* ${{ github.ref_name }}\\n*Triggered by:* ${{ github.actor }}\\n\\n⚠️ *Waiting for manual approval to proceed with deployment*\"
+                    }
+                  },
+                  {
+                    \"type\":\"actions\",
+                    \"elements\":[
+                      {
+                        \"type\":\"button\",
+                        \"text\":{\"type\":\"plain_text\",\"text\":\"View Workflow\"},
+                        \"url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+                      }
+                    ]
+                  }
+                ]
+              }" \
+              "$WEBHOOK_URL"
+          fi
+
+      - name: Fake Terraform Apply
+        run: echo "🚀 Terraform apply completed for ${{ matrix.environment }} (placeholder)"

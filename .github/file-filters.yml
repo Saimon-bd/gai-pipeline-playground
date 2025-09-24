@@ -1,81 +1,33 @@
 # dev
-dev/charging-service/infrastructure:
-  - environments/dev/charging-service/infrastructure/**
 dev/charging-service/apim-config:
-  - environments/dev/charging-service/apim-config/**
-dev/cross-service/infrastructure:
-  - environments/dev/cross-service/infrastructure/**
+  - 'environments/dev/charging-service/apim-config/**'
 dev/cross-service/apim-config:
-  - environments/dev/cross-service/apim-config/**
-dev/customer-service/infrastructure:
-  - environments/dev/customer-service/infrastructure/**
+  - 'environments/dev/cross-service/apim-config/**'
 dev/customer-service/apim-config:
-  - environments/dev/customer-service/apim-config/**
-dev/customer-service/psql-config:
-  - environments/dev/customer-service/psql-config/**
-dev/customer-service/ad-b2c:
-  - environments/dev/customer-service/ad-b2c/**
-dev/ocpi-service/infrastructure:
-  - environments/dev/ocpi-service/infrastructure/**
-dev/ocpi-service/psql-config:
-  - environments/dev/ocpi-service/psql-config/**
+  - 'environments/dev/customer-service/apim-config/**'
 dev/ocpi-service/apim-config:
-  - environments/dev/ocpi-service/apim-config/**
-dev/frontend:
-  - environments/dev/frontend/**
+  - 'environments/dev/ocpi-service/apim-config/**'
 dev/public-api/apim-config:
-  - environments/dev/public-api/apim-config/**
-dev/ems-service/psql-config:
-  - environments/dev/ems-service/psql-config/**
+  - 'environments/dev/public-api/apim-config/**'
+
 # stg
-stg/cross-service/infrastructure:
-  - environments/stg/cross-service/infrastructure/**
-stg/cross-service/apim-config:
-  - environments/stg/cross-service/apim-config/**
-stg/frontend:
-  - environments/stg/frontend/**
-stg/charging-service/infrastructure:
-  - environments/stg/charging-service/infrastructure/**
 stg/charging-service/apim-config:
-  - environments/stg/charging-service/apim-config/**
-stg/customer-service/infrastructure:
-  - environments/stg/customer-service/infrastructure/**
+  - 'environments/stg/charging-service/apim-config/**'
+stg/cross-service/apim-config:
+  - 'environments/stg/cross-service/apim-config/**'
 stg/customer-service/apim-config:
-  - environments/stg/customer-service/apim-config/**
-stg/customer-service/psql-config:
-  - environments/stg/customer-service/psql-config/**
-stg/customer-service/ad-b2c:
-  - environments/stg/customer-service/ad-b2c/**
-stg/ocpi-service/infrastructure:
-  - environments/stg/ocpi-service/infrastructure/**
-stg/ocpi-service/psql-config:
-  - environments/stg/ocpi-service/psql-config/**
+  - 'environments/stg/customer-service/apim-config/**'
 stg/ocpi-service/apim-config:
-  - environments/stg/ocpi-service/apim-config/**
+  - 'environments/stg/ocpi-service/apim-config/**'
 stg/public-api/apim-config:
-  - environments/stg/public-api/apim-config/**
-stg/ems-service/psql-config:
-  - environments/stg/ems-service/psql-config/**
+  - 'environments/stg/public-api/apim-config/**'
+
 # prd
-prd/cross-service/infrastructure:
-  - environments/prd/cross-service/infrastructure/**
-prd/cross-service/apim-config:
-  - environments/prd/cross-service/apim-config/**
-prd/frontend:
-  - environments/prd/frontend/**
-prd/charging-service/infrastructure:
-  - environments/prd/charging-service/infrastructure/**
 prd/charging-service/apim-config:
-  - environments/prd/charging-service/apim-config/**
-prd/customer-service/infrastructure:
-  - environments/prd/customer-service/infrastructure/**
+  - 'environments/prd/charging-service/apim-config/**'
+prd/cross-service/apim-config:
+  - 'environments/prd/cross-service/apim-config/**'
 prd/customer-service/apim-config:
-  - environments/prd/customer-service/apim-config/**
-prd/customer-service/psql-config:
-  - environments/prd/customer-service/psql-config/**
-prd/customer-service/ad-b2c:
-  - environments/prd/customer-service/ad-b2c/**
+  - 'environments/prd/customer-service/apim-config/**'
 prd/public-api/apim-config:
-  - environments/prd/public-api/apim-config/**
-prd/ems-service/psql-config:
-  - environments/prd/ems-service/psql-config/**
+  - 'environments/prd/public-api/apim-config/**'
