@@ -68,9 +68,9 @@ jobs:
           paths='${{ inputs.paths }}'
           filtered_paths=$(echo "$paths" | jq -r --arg env "${{ matrix.env }}" '.[] | select(startswith($env + "/"))')
           
-          # Convert to JSON array
+          # Convert to compact JSON array (single line)
           if [ -n "$filtered_paths" ]; then
-            json_array=$(echo "$filtered_paths" | jq -R . | jq -s .)
+            json_array=$(echo "$filtered_paths" | jq -R . | jq -s -c .)
           else
             json_array="[]"
           fi
@@ -123,13 +123,14 @@ jobs:
           paths='${{ inputs.paths }}'
           filtered_paths=$(echo "$paths" | jq -r --arg env "${{ matrix.env }}" '.[] | select(startswith($env + "/"))')
           
-          # Get file list for notification
+          # Get file list for notification (single line)
           file_list=""
           if [ -n "$filtered_paths" ]; then
-            file_list=$(echo "$filtered_paths" | tr '\n' ', ' | sed 's/, $//')
+            file_list=$(echo "$filtered_paths" | tr '\n' ', ' | sed 's/, $//' | tr -d '\r')
           fi
           
           echo "files=$file_list" >> $GITHUB_OUTPUT
+          echo "Files for ${{ matrix.env }}: $file_list"
 
       - name: Get Slack Webhook for Environment
         id: slack-webhook
@@ -218,13 +219,15 @@ jobs:
           paths='${{ inputs.paths }}'
           filtered_paths=$(echo "$paths" | jq -r --arg env "${{ matrix.env }}" '.[] | select(startswith($env + "/"))')
           
+          # Convert to compact JSON array (single line)
           if [ -n "$filtered_paths" ]; then
-            json_array=$(echo "$filtered_paths" | jq -R . | jq -s .)
+            json_array=$(echo "$filtered_paths" | jq -R . | jq -s -c .)
           else
             json_array="[]"
           fi
           
           echo "env-paths=$json_array" >> $GITHUB_OUTPUT
+          echo "Apply paths for ${{ matrix.env }}: $json_array"
 
       - name: Mock Terraform Apply for Environment Paths
         if: steps.process-paths.outputs.env-paths != '[]'
