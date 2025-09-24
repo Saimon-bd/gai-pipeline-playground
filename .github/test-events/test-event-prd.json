@@ -1,1 +1,0 @@
-{ "pull_request": { "number": 3, "merged": true, "head": { "ref": "feature-prd-test" }, "base": { "ref": "main" } }, "repository": { "full_name": "Saimon-bd/gai-pipeline-playground" }, "commits": [ { "id": "prd123", "message": "Prd env changes", "added": [ "environments/prd/charging-service/apim-config/openapi/test6.yaml" ], "modified": [], "removed": [] } ] }
