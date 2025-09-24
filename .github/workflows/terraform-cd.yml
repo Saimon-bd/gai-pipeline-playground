@@ -11,6 +11,12 @@ on:
         required: false
       azure-shared-subscription-id:
         required: true
+      slack-webhook-url-dev:
+        required: false
+      slack-webhook-url-stg:
+        required: false
+      slack-webhook-url-prd:
+        required: false
     inputs:
       region:
         required: true
@@ -52,8 +58,41 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Wait for Approval
-        run: echo "⏳ Waiting for approval for env=${{ matrix.environment }}"
+      - name: Slack - Waiting for Approval
+        run: |
+          WEBHOOK_URL=""
+          case "${{ matrix.environment }}" in
+            "dev") WEBHOOK_URL="${{ secrets.slack-webhook-url-dev }}" ;;
+            "stg") WEBHOOK_URL="${{ secrets.slack-webhook-url-stg }}" ;;  
+            "prd") WEBHOOK_URL="${{ secrets.slack-webhook-url-prd }}" ;;
+          esac
+          
+          if [ ! -z "$WEBHOOK_URL" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{
+                \"text\":\"⏳ *Approval Required*\",
+                \"blocks\":[
+                  {
+                    \"type\":\"section\",
+                    \"text\":{
+                      \"type\":\"mrkdwn\",
+                      \"text\":\"🔄 *Infrastructure Deployment Pending*\\n\\n*Environment:* \`${{ matrix.environment }}\`\\n*Repository:* ${{ github.repository }}\\n*Branch:* ${{ github.ref_name }}\\n*Triggered by:* ${{ github.actor }}\\n\\n⚠️ *Waiting for manual approval to proceed with deployment*\"
+                    }
+                  },
+                  {
+                    \"type\":\"actions\",
+                    \"elements\":[
+                      {
+                        \"type\":\"button\",
+                        \"text\":{\"type\":\"plain_text\",\"text\":\"View Workflow\"},
+                        \"url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+                      }
+                    ]
+                  }
+                ]
+              }" \
+              "$WEBHOOK_URL"
+          fi
 
       - name: Fake Terraform Apply
         run: echo "🚀 Terraform apply completed for ${{ matrix.environment }} (placeholder)"

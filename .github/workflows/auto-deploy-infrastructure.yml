@@ -1,0 +1,80 @@
+name: Deploy Infrastructure
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+    paths:
+      - 'environments/**/apim-config/openapi/*.yaml'
+
+jobs:
+  paths:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      changes: ${{ steps.filter.outputs.changes }}
+      result: ${{ steps.filter.outputs.changes }}
+      envs: ${{ steps.extract-envs.outputs.envs }}
+      services: ${{ steps.extract-services.outputs.services }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Filter Paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: '.github/file-filters.yml'
+
+      - name: Show Changes
+        run: "echo 'Changed filters- ${{ steps.filter.outputs.changes }}'"
+
+      - name: Extract unique envs
+        id: extract-envs
+        run: |
+            changes='${{ steps.filter.outputs.changes }}'
+            echo "Raw changes: $changes"
+
+            envs=$(echo "$changes" | jq -r '.[]' | cut -d'/' -f1 | sort -u)
+            echo "Unique envs: $envs"
+
+            echo "envs=$(echo $envs | tr ' ' ',')" >> $GITHUB_OUTPUT
+
+      - name: Extract unique services
+        id: extract-services
+        run: |
+            changes='${{ steps.filter.outputs.changes }}'
+            echo "Raw changes: $changes"
+
+            services=$(echo "$changes" | jq -r '.[]' | cut -d'/' -f2 | sort -u)
+            echo "Unique services: $services"
+
+            echo "services=$(echo $services | tr ' ' ',')" >> $GITHUB_OUTPUT
+
+      - name: Show parsed outputs
+        run: |
+            echo "env: [${{ steps.extract-envs.outputs.envs }}]"
+            echo "service: [${{ steps.extract-services.outputs.services }}]"
+
+  cd:
+    name: Terraform CD
+    if: ${{ (needs.paths.outputs.result != '[]' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch' }}
+    needs: paths
+    uses: ./.github/workflows/terraform-cd.yml
+    secrets: 
+      github-token: ${{ secrets.BOT_GITHUB }}
+      azure-credentials-env: ${{ secrets.AZ_SP_INFRA_CREDS_DEV }}
+      azure-credentials-adb2c: ${{ secrets.AZ_B2C_APP_DEV }}
+      azure-shared-subscription-id: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID }}
+      slack-webhook-url-dev: ${{ secrets.SLACK_WEBHOOK_URL_DEV }}
+      slack-webhook-url-stg: ${{ secrets.SLACK_WEBHOOK_URL_STG }}
+      slack-webhook-url-prd: ${{ secrets.SLACK_WEBHOOK_URL_PRD }}
+    with:
+      team: greenlane
+      environment: ${{ format('["{0}"]', needs.paths.outputs.envs) }}
+      terraform-version: 1.6.3
+      region: ${{ contains(needs.paths.outputs.envs, 'dev') && 'eastus2' || 'centralus' }}
