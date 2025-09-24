@@ -1,11 +1,6 @@
 name: Deploy Infrastructure
 
 on:
-  pull_request:
-    types: [ closed ]
-    paths:
-      - 'environments/**/apim-config/openapi/*.yaml'
-
   workflow_dispatch:
     inputs:
       environment:
