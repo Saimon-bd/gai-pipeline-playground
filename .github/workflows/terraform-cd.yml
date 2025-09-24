@@ -30,6 +30,9 @@ on:
       terraform-version:
         required: true
         type: string
+      paths:
+        required: false
+        type: string
 
 jobs:
   terraform-plan:

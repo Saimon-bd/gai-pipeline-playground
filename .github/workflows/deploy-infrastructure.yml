@@ -1,11 +1,6 @@
 name: Deploy Infrastructure
 
 on:
-  pull_request:
-    types: [ closed ]
-    paths:
-      - 'environments/**/apim-config/openapi/*.yaml'
-
   workflow_dispatch:
     inputs:
       environment:
@@ -73,7 +68,7 @@ jobs:
 
   cd:
     name: Terraform CD
-    if: ${{ needs.paths.outputs.result != '[]'  && github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'}}
+    if: ${{ needs.paths.outputs.result != '[]' }}
     needs: paths
     uses: ./.github/workflows/terraform-cd.yml
     secrets: 
