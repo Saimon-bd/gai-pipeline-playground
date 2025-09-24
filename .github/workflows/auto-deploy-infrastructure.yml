@@ -77,7 +77,7 @@ jobs:
       slack-webhook-url-stg: ${{ secrets.SLACK_WEBHOOK_URL_STG }}
       slack-webhook-url-prd: ${{ secrets.SLACK_WEBHOOK_URL_PRD }}
     with:
-      team: greenlane
+      team: greenlane  
       environment: ${{ needs.paths.outputs.envs }}
       terraform-version: 1.6.3
       region: ${{ contains(needs.paths.outputs.envs, 'dev') && 'eastus2' || 'centralus' }}
