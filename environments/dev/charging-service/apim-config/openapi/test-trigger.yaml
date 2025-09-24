@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: Charging Service API - COMPREHENSIVE TEST
-  version: "2.0.0"
-  description: "Multi-environment comprehensive test - DEV environment"
+  title: Charging Service API - CASE DEBUG TEST
+  version: "2.1.0" 
+  description: "Testing case debugging - DEV environment"
 paths:
   /charge:
     post:

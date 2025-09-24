@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: Public API PRD - COMPREHENSIVE TEST
-  version: "2.0.0"
-  description: "Multi-environment comprehensive test - PRD environment"
+  title: Public API PRD - CASE DEBUG TEST
+  version: "2.1.0"
+  description: "Testing environment case debugging and Slack notification fix"
 paths:
   /api:
     get:
