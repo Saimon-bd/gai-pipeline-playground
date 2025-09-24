@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: Public API STG - MOCK WORKFLOW TEST
-  version: "3.1.0"
-  description: "Testing mock workflow in STG environment with Slack notifications"
+  title: Public API STG - OUTPUT FORMAT FIXED
+  version: "3.3.0"
+  description: "Testing workflow with fixed GitHub Actions output format in STG"
 paths:
   /api:
     get:
