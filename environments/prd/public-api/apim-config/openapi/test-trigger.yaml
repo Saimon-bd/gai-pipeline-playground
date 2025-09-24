@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: Public API PRD - YAML SYNTAX FIXED
-  version: "3.2.0"
-  description: "Testing workflow with fixed YAML syntax - should work now!"
+  title: Public API PRD - OUTPUT FORMAT FIXED
+  version: "3.3.0"
+  description: "Testing workflow with fixed GitHub Actions output format"
 paths:
   /api:
     get:
