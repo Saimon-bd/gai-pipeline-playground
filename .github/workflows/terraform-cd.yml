@@ -11,12 +11,6 @@ on:
         required: false
       azure-shared-subscription-id:
         required: true
-      slack-webhook-url-dev:
-        required: false
-      slack-webhook-url-stg:
-        required: false
-      slack-webhook-url-prd:
-        required: false
     inputs:
       region:
         required: true
@@ -39,6 +33,9 @@ jobs:
   terraform-plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: ${{ fromJson(inputs.environment) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -47,6 +44,66 @@ jobs:
 
       - name: Fake Terraform Plan
         run: echo "✅ Terraform plan completed (placeholder)"
+
+      - name: Slack - Waiting for Approval
+        run: |
+          echo "🔍 Debug: Environment = '${{ matrix.environment }}'"
+          
+          MATRIX_ENV="${{ matrix.environment }}"
+          UPPER_ENV=$(echo "$MATRIX_ENV" | tr '[:lower:]' '[:upper:]')
+          LOWER_ENV=$(echo "$MATRIX_ENV" | tr '[:upper:]' '[:lower:]')
+          
+          echo "🔍 Debug: Case variations:"
+          echo "  Original: [$MATRIX_ENV]"
+          echo "  Uppercase: [$UPPER_ENV]" 
+          echo "  Lowercase: [$LOWER_ENV]"
+          
+          WEBHOOK_URL=""
+          # Direct secret access based on environment
+          case "$LOWER_ENV" in
+            "dev") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_DEV }}" ;;
+            "stg") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_STG }}" ;;  
+            "prd") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_PRD }}" ;;
+            *) 
+              echo "❌ No case match for: [$MATRIX_ENV]"
+              echo "   Tried lowercase: [$LOWER_ENV]"
+              ;;
+          esac
+          
+          echo "🔍 Debug: WEBHOOK_URL length = ${#WEBHOOK_URL}"
+          
+          if [ ! -z "$WEBHOOK_URL" ]; then
+            echo "✅ Sending approval request for $LOWER_ENV (original: $MATRIX_ENV)"
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{
+                \"text\":\"⏳ Waiting for Approval - APIM Deploy: $LOWER_ENV\",
+                \"blocks\":[
+                  {
+                    \"type\":\"section\",
+                    \"text\":{
+                      \"type\":\"mrkdwn\",
+                      \"text\":\"*⏳ Waiting for Manual Approval*\\n\\n*Environment:* $LOWER_ENV\\n*Repository:* ${{ github.repository }}\\n*Triggered by:* ${{ github.actor }}\\n\\nAPIM infrastructure plan completed successfully. Manual approval required to proceed with deployment.\"
+                    }
+                  },
+                  {
+                    \"type\":\"actions\",
+                    \"elements\":[
+                      {
+                        \"type\":\"button\",
+                        \"text\":{\"type\":\"plain_text\",\"text\":\"� Approve Deployment\"},
+                        \"url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+                      }
+                    ]
+                  }
+                ]
+              }" \
+              "$WEBHOOK_URL"
+            echo "✅ Approval request sent successfully"
+          else
+            echo "❌ No webhook URL found for environment: ${{ matrix.environment }}"
+            echo "💡 Please add SLACK_WEBHOOK_URL_$(echo ${{ matrix.environment }} | tr '[:lower:]' '[:upper:]') secret"
+          fi
+
 
   terraform-apply:
     name: Terraform Apply
@@ -61,66 +118,6 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
-
-      - name: Slack - Waiting for Approval
-        run: |
-          echo "🔍 Debug: Environment = '${{ matrix.environment }}'"
-          echo "🔍 Debug: Input environment = '${{ inputs.environment }}'"
-          
-          MATRIX_ENV="${{ matrix.environment }}"
-          UPPER_ENV=$(echo "$MATRIX_ENV" | tr '[:lower:]' '[:upper:]')
-          LOWER_ENV=$(echo "$MATRIX_ENV" | tr '[:upper:]' '[:lower:]')
-          
-          echo "🔍 Debug: Case variations:"
-          echo "  Original: [$MATRIX_ENV]"
-          echo "  Uppercase: [$UPPER_ENV]" 
-          echo "  Lowercase: [$LOWER_ENV]"
-          echo "  Length: ${#MATRIX_ENV}"
-          WEBHOOK_URL=""
-          # Try both lowercase and uppercase matching
-          case "$LOWER_ENV" in
-            "dev") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_DEV }}" ;;
-            "stg") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_STG }}" ;;  
-            "prd") WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_PRD }}" ;;
-            *) 
-              echo "❌ No case match for: [$MATRIX_ENV]"
-              echo "   Tried lowercase: [$LOWER_ENV]"
-              ;;
-          esac
-          
-          echo "🔍 Debug: WEBHOOK_URL length = ${#WEBHOOK_URL}"
-          
-          if [ ! -z "$WEBHOOK_URL" ]; then
-            echo "✅ Sending Slack notification for $LOWER_ENV (original: $MATRIX_ENV)"
-            curl -X POST -H 'Content-type: application/json' \
-              --data "{
-                \"text\":\"Waiting for APIM apply approval - $LOWER_ENV\",
-                \"blocks\":[
-                  {
-                    \"type\":\"section\",
-                    \"text\":{
-                      \"type\":\"mrkdwn\",
-                      \"text\":\"*Environment:* $LOWER_ENV\\n*Repository:* ${{ github.repository }}\\n*Triggered by:* ${{ github.actor }}\\n\\nWaiting for APIM apply approval.\"
-                    }
-                  },
-                  {
-                    \"type\":\"actions\",
-                    \"elements\":[
-                      {
-                        \"type\":\"button\",
-                        \"text\":{\"type\":\"plain_text\",\"text\":\"View Workflow\"},
-                        \"url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
-                      }
-                    ]
-                  }
-                ]
-              }" \
-              "$WEBHOOK_URL"
-            echo "✅ Slack notification sent successfully"
-          else
-            echo "❌ No webhook URL found for environment: ${{ matrix.environment }}"
-            echo "💡 Please add SLACK_WEBHOOK_URL_$(echo ${{ matrix.environment }} | tr '[:lower:]' '[:upper:]') secret"
-          fi
 
       - name: Fake Terraform Apply
         run: echo "🚀 Terraform apply completed for ${{ matrix.environment }} (placeholder)"
