@@ -1,0 +1,35 @@
+# Test OpenAPI configuration for STG environment
+# Multi-environment deployment test
+
+openapi: 3.0.0
+info:
+  title: Public API Test - STG
+  description: Staging environment test for auto-deployment pipeline  
+  version: "1.0.1"
+  
+servers:
+  - url: https://api-stg.greenlane.com/public
+    description: Staging environment
+    
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  environment:
+                    type: string
+                    example: "stg"
+
+# Auto-deploy test: STG environment
+# Expected: Should trigger deployment for staging
+# Service: public-api

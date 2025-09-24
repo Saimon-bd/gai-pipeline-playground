@@ -37,13 +37,13 @@ jobs:
           # Send test notification
           curl -X POST -H 'Content-type: application/json' \
             -d '{
-              "text": "🧪 *Test Notification*",
+              "text": "Waiting for APIM apply approval - ${{ inputs.environment }}",
               "blocks": [
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn", 
-                    "text": "🧪 *Slack Integration Test*\n\n*Environment:* `${{ inputs.environment }}`\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Triggered by:* ${{ github.actor }}\n*Test Time:* $(date)\n\n✅ *This is a manual test of Slack webhook integration*"
+                    "text": "*Environment:* ${{ inputs.environment }}\n*Repository:* ${{ github.repository }}\n*Triggered by:* ${{ github.actor }}\n\nWaiting for APIM apply approval."
                   }
                 },
                 {
@@ -51,17 +51,8 @@ jobs:
                   "elements": [
                     {
                       "type": "button",
-                      "text": {"type": "plain_text", "text": "View Test Run"},
+                      "text": {"type": "plain_text", "text": "View Workflow"},
                       "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                    }
-                  ]
-                },
-                {
-                  "type": "context",
-                  "elements": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "🧪 *TEST NOTIFICATION* - Slack webhook validation"
                     }
                   ]
                 }

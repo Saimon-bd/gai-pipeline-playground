@@ -73,13 +73,13 @@ jobs:
           if [ ! -z "$WEBHOOK_URL" ]; then
             curl -X POST -H 'Content-type: application/json' \
               --data "{
-                \"text\":\"⏳ *Approval Required*\",
+                \"text\":\"Waiting for APIM apply approval - ${{ matrix.environment }}\",
                 \"blocks\":[
                   {
                     \"type\":\"section\",
                     \"text\":{
                       \"type\":\"mrkdwn\",
-                      \"text\":\"🔄 *Infrastructure Deployment Pending*\\n\\n*Environment:* \`${{ matrix.environment }}\`\\n*Repository:* ${{ github.repository }}\\n*Branch:* ${{ github.ref_name }}\\n*Triggered by:* ${{ github.actor }}\\n\\n⚠️ *Waiting for manual approval to proceed with deployment*\"
+                      \"text\":\"*Environment:* ${{ matrix.environment }}\\n*Repository:* ${{ github.repository }}\\n*Triggered by:* ${{ github.actor }}\\n\\nWaiting for APIM apply approval.\"
                     }
                   },
                   {
