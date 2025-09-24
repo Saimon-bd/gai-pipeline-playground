@@ -4,9 +4,9 @@
 
 openapi: 3.0.0
 info:
-  title: Customer Service Test API - MOCK WORKFLOW DEV
-  description: Testing mock workflow in DEV environment with Slack notifications
-  version: "3.1.0"
+  title: Customer Service Test API - OUTPUT FORMAT FIXED DEV
+  description: Testing workflow with fixed output format in DEV environment
+  version: "3.3.0"
   
 servers:
   - url: https://api-dev.greenlane.com/customer
