@@ -135,17 +135,26 @@ jobs:
       - name: Get Slack Webhook for Environment
         id: slack-webhook
         run: |
+          echo "🔍 Debug: Environment = ${{ matrix.env }}"
+          
           case "${{ matrix.env }}" in
             "dev")
-              echo "webhook=${{ secrets.SLACK_WEBHOOK_URL_DEV }}" >> $GITHUB_OUTPUT
+              WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_DEV }}"
+              echo "🔍 Debug: DEV webhook length = ${#WEBHOOK_URL}"
+              echo "webhook=$WEBHOOK_URL" >> $GITHUB_OUTPUT
               ;;
             "stg")
-              echo "webhook=${{ secrets.SLACK_WEBHOOK_URL_STG }}" >> $GITHUB_OUTPUT
+              WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_STG }}"
+              echo "🔍 Debug: STG webhook length = ${#WEBHOOK_URL}"
+              echo "webhook=$WEBHOOK_URL" >> $GITHUB_OUTPUT
               ;;
             "prd")
-              echo "webhook=${{ secrets.SLACK_WEBHOOK_URL_PRD }}" >> $GITHUB_OUTPUT
+              WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_PRD }}"
+              echo "🔍 Debug: PRD webhook length = ${#WEBHOOK_URL}"
+              echo "webhook=$WEBHOOK_URL" >> $GITHUB_OUTPUT
               ;;
             *)
+              echo "🔍 Debug: Unknown environment = ${{ matrix.env }}"
               echo "webhook=" >> $GITHUB_OUTPUT
               ;;
           esac
@@ -153,6 +162,9 @@ jobs:
       - name: Send Approval Waiting Notification
         if: steps.slack-webhook.outputs.webhook != ''
         run: |
+          echo "📱 Sending Slack notification for ${{ matrix.env }}"
+          echo "🔍 Webhook URL: ${{ steps.slack-webhook.outputs.webhook }}"
+          
           curl -X POST -H 'Content-type: application/json' \
             --data "{
               \"attachments\": [{
