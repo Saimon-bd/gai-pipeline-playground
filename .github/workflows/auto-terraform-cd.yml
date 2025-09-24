@@ -8,10 +8,7 @@ on:
       azure-credentials-env:
         required: false
       azure-credentials-adb2c:
-       - name: Mock Environment Setup
-        run: |
-          echo "🔧 Mock: Setting up environment variables for ${{ matrix.env }}"
-          echo "🔧 Mock: Configuring git authentication"quired: false
+        required: false
       azure-shared-subscription-id:
         required: false
     inputs:
