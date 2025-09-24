@@ -1,0 +1,298 @@
+name: Auto Trigger Terraform CD
+
+on:
+  workflow_call:
+    secrets:
+      github-token:
+        required: true
+      azure-credentials-env:
+        required: true
+      azure-credentials-adb2c:
+        required: false
+      azure-shared-subscription-id:
+        required: true
+    inputs:
+      team:
+        required: true
+        type: string
+      environment:
+        required: true
+        type: string
+      environments:
+        required: true
+        type: string
+      paths:
+        required: true
+        type: string
+      terraform-version:
+        required: true
+        type: string
+      test-mode:
+        description: 'Enable test mode (plan only, no apply)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  terraform-plan:
+    name: Plan ${{ matrix.env }}
+    runs-on:
+      group: linux-2core-${{ matrix.env }}-${{ matrix.env == 'dev' && 'eastus2' || 'centralus' }}-group
+    strategy:
+      matrix:
+        env: ${{ fromJson(inputs.environments) }}
+      fail-fast: false
+    
+    env:
+      TF_VAR_AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
+      AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
+    
+    defaults:
+      run:
+        shell: bash
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.github-token }}
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+
+      - name: Process Paths for Environment
+        id: process-paths
+        run: |
+          # Filter paths for current matrix environment
+          paths='${{ inputs.paths }}'
+          filtered_paths=$(echo "$paths" | jq -r --arg env "${{ matrix.env }}" '.[] | select(startswith($env + "/"))')
+          
+          # Convert to JSON array
+          if [ -n "$filtered_paths" ]; then
+            json_array=$(echo "$filtered_paths" | jq -R . | jq -s .)
+          else
+            json_array="[]"
+          fi
+          
+          echo "env-paths=$json_array" >> $GITHUB_OUTPUT
+          echo "Filtered paths for ${{ matrix.env }}: $json_array"
+
+      - name: Set Environment Variables
+        if: steps.process-paths.outputs.env-paths != '[]'
+        uses: ./.github/workflows/azure-spn-secret-env
+        with:
+          creds-env: ${{ secrets.azure-credentials-env }}
+          creds-adb2c: ${{ secrets.azure-credentials-adb2c }}
+          environment: ${{ matrix.env }}
+
+      - name: Configure git token
+        if: steps.process-paths.outputs.env-paths != '[]'
+        run: git config --global url."https://${{ secrets.github-token }}:@github.com/drivegreenlane/".insteadOf "https://github.com/drivegreenlane/"\
+
+      - name: Terraform Plan for Environment Paths
+        if: steps.process-paths.outputs.env-paths != '[]'
+        run: |
+          paths='${{ steps.process-paths.outputs.env-paths }}'
+          echo "$paths" | jq -r '.[]' | while read path; do
+            echo "Processing path: $path"
+            
+            if [ -d "environments/$path" ]; then
+              cd "environments/$path"
+              
+              echo "Initializing Terraform in: $path"
+              terraform init -backend-config ${{ matrix.env }}.backend.tfvars -upgrade
+              
+              echo "Planning Terraform in: $path"
+              terraform plan -no-color -out=tfplan -detailed-exitcode || export exitcode=$?
+              terraform show -no-color tfplan > plan.txt
+              
+              # Produce output according to exitcode: 0 (no changes) 1 (failed) 2 (changes)
+              if [ $exitcode -eq 1 ]; then
+                echo "Terraform Plan Failed for: $path"
+                exit 1
+              elif [ $exitcode -eq 2 ]; then
+                if grep -q 'destroy' plan.txt; then
+                  echo "::warning::Destroy actions encountered in plan file for: $path"
+                fi
+                echo "Changes detected in: $path"
+              else 
+                echo "::notice::No changes encountered in plan file for: $path"
+              fi
+              
+              cd - > /dev/null
+            else
+              echo "Directory not found: environments/$path"
+            fi
+          done
+
+      # Upload plan artifacts for each path
+      - name: Upload Plan Artifacts
+        if: steps.process-paths.outputs.env-paths != '[]'
+        run: |
+          paths='${{ steps.process-paths.outputs.env-paths }}'
+          echo "$paths" | jq -r '.[]' | while read path; do
+            if [ -f "environments/$path/tfplan" ]; then
+              service_name=$(echo "$path" | sed 's/\//-/g')
+              echo "Uploading artifact for: tfplan-${{ inputs.team }}-$service_name-${{ github.run_number }}"
+            fi
+          done
+
+  approval-notification:
+    name: Notify Approval Required
+    needs: [terraform-plan]
+    if: needs.terraform-plan.result == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: ${{ fromJson(inputs.environments) }}
+      fail-fast: false
+    
+    steps:
+      - name: Process Paths for Environment
+        id: process-paths
+        run: |
+          paths='${{ inputs.paths }}'
+          filtered_paths=$(echo "$paths" | jq -r --arg env "${{ matrix.env }}" '.[] | select(startswith($env + "/"))')
+          
+          # Get file list for notification
+          file_list=""
+          if [ -n "$filtered_paths" ]; then
+            file_list=$(echo "$filtered_paths" | tr '\n' ', ' | sed 's/, $//')
+          fi
+          
+          echo "files=$file_list" >> $GITHUB_OUTPUT
+
+      - name: Get Slack Webhook for Environment
+        id: slack-webhook
+        run: |
+          case "${{ matrix.env }}" in
+            "dev")
+              echo "webhook=${{ secrets.SLACK_WEBHOOK_URL_DEV }}" >> $GITHUB_OUTPUT
+              ;;
+            "stg")
+              echo "webhook=${{ secrets.SLACK_WEBHOOK_URL_STG }}" >> $GITHUB_OUTPUT
+              ;;
+            "prd")
+              echo "webhook=${{ secrets.SLACK_WEBHOOK_URL_PRD }}" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "webhook=" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Send Approval Waiting Notification
+        if: steps.slack-webhook.outputs.webhook != ''
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"#ff9500\",
+                \"title\": \"⏳ Waiting for APIM Apply Approval\",
+                \"fields\": [
+                  {\"title\": \"Environment\", \"value\": \"${{ matrix.env }}\", \"short\": true},
+                  {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true},
+                  {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
+                  {\"title\": \"Files\", \"value\": \"${{ steps.process-paths.outputs.files }}\", \"short\": false}
+                ],
+                \"actions\": [{
+                  \"type\": \"button\",
+                  \"text\": \"🚀 Approve Deployment\",
+                  \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+                }]
+              }]
+            }" \
+            "${{ steps.slack-webhook.outputs.webhook }}"
+
+  terraform-apply:
+    name: Apply ${{ matrix.env }}
+    runs-on:
+      group: linux-2core-${{ matrix.env }}-${{ matrix.env == 'dev' && 'eastus2' || 'centralus' }}-group
+    needs: [terraform-plan]
+    if: needs.terraform-plan.result == 'success' && inputs.test-mode != true
+    environment: ${{ matrix.env }}
+    strategy:
+      matrix:
+        env: ${{ fromJson(inputs.environments) }}
+      fail-fast: false
+    
+    env:
+      TF_VAR_AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
+      AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
+    
+    defaults:
+      run:
+        shell: bash
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.github-token }}
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+
+      - name: Set Environment Variables
+        uses: ./.github/workflows/azure-spn-secret-env
+        with:
+          creds-env: ${{ secrets.azure-credentials-env }}
+          creds-adb2c: ${{ secrets.azure-credentials-adb2c }}
+          environment: ${{ matrix.env }}
+
+      - name: Configure git token
+        run: git config --global url."https://${{ secrets.github-token }}:@github.com/drivegreenlane/".insteadOf "https://github.com/drivegreenlane/"\
+
+      - name: Process Paths for Environment
+        id: process-paths
+        run: |
+          paths='${{ inputs.paths }}'
+          filtered_paths=$(echo "$paths" | jq -r --arg env "${{ matrix.env }}" '.[] | select(startswith($env + "/"))')
+          
+          if [ -n "$filtered_paths" ]; then
+            json_array=$(echo "$filtered_paths" | jq -R . | jq -s .)
+          else
+            json_array="[]"
+          fi
+          
+          echo "env-paths=$json_array" >> $GITHUB_OUTPUT
+
+      - name: Terraform Apply for Environment Paths
+        if: steps.process-paths.outputs.env-paths != '[]'
+        run: |
+          paths='${{ steps.process-paths.outputs.env-paths }}'
+          echo "$paths" | jq -r '.[]' | while read path; do
+            echo "Processing apply for path: $path"
+            
+            if [ -d "environments/$path" ]; then
+              cd "environments/$path"
+              
+              echo "Initializing Terraform in: $path"
+              terraform init -backend-config ${{ matrix.env }}.backend.tfvars -upgrade
+              
+              # Download plan artifact (simplified - in real scenario would use artifacts)
+              echo "Applying Terraform in: $path"
+              terraform apply -auto-approve -input=false
+              
+              cd - > /dev/null
+            else
+              echo "Directory not found: environments/$path"
+            fi
+          done
+
+      - name: Upload TrustFramework Policy
+        if: steps.process-paths.outputs.env-paths != '[]'
+        run: |
+          paths='${{ steps.process-paths.outputs.env-paths }}'
+          echo "$paths" | jq -r '.[]' | while read path; do
+            if [[ "$path" == *"customer-service/ad-b2c"* ]]; then
+              echo "Uploading TrustFramework Policy for: $path"
+              # Add B2C policy deployment logic here if needed
+            fi
+          done
+

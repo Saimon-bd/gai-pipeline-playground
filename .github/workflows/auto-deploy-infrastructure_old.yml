@@ -1,12 +1,7 @@
 name: Deploy Infrastructure (Auto)
 
 on:
-  pull_request:
-    types: [closed]
-    branches:
-      - main
-    paths:
-      - 'environments/**/apim-config/openapi/*.yaml'
+  workflow_dispatch:
 
 jobs:
   paths:
@@ -65,18 +60,16 @@ jobs:
 
   cd:
     name: Terraform CD
-    if: ${{ needs.paths.outputs.result != '[]' && github.event.pull_request.merged == true }}
+    if: ${{ (needs.paths.outputs.result != '[]' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch' }}
     needs: paths
-    uses: ./.github/workflows/auto-terraform-cd.yml
+    uses: ./.github/workflows/terraform-cd.yml
     secrets: 
       github-token: ${{ secrets.BOT_GITHUB }}
       azure-credentials-env: ${{ secrets.AZ_SP_INFRA_CREDS_DEV }}
       azure-credentials-adb2c: ${{ secrets.AZ_B2C_APP_DEV }}
       azure-shared-subscription-id: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID }}
     with:
-      team: greenlane
-      environment: auto
-      paths: ${{ needs.paths.outputs.result }}
-      environments: ${{ needs.paths.outputs.envs }}
+      team: greenlane  
+      environment: ${{ needs.paths.outputs.envs }}
       terraform-version: 1.6.3
-      test-mode: true
+      region: ${{ contains(needs.paths.outputs.envs, 'dev') && 'eastus2' || 'centralus' }}
