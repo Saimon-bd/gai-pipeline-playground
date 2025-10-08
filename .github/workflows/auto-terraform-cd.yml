@@ -3,26 +3,40 @@ name: Auto Trigger Terraform CD
 on:
   workflow_call:
     secrets:
+      # GitHub token
       github-token:
+        required: true
+
+      # Azure SPN credentials per environment
+      azure-credentials-dev:
         required: false
-      azure-credentials-env:
+      azure-credentials-stg:
         required: false
-      azure-credentials-adb2c:
+      azure-credentials-prd:
         required: false
+
+      # Azure ADB2C credentials per environment
+      azure-credentials-adb2c-dev:
+        required: false
+      azure-credentials-adb2c-stg:
+        required: false
+      azure-credentials-adb2c-prd:
+        required: false
+
+      # Shared Azure subscription ID
       azure-shared-subscription-id:
-        required: false
-      # ✅ Slack webhook secrets
+        required: true
+
+      # Slack webhooks per environment
       SLACK_WEBHOOK_URL_DEV:
         required: false
       SLACK_WEBHOOK_URL_STG:
         required: false
       SLACK_WEBHOOK_URL_PRD:
         required: false
+
     inputs:
       team:
-        required: true
-        type: string
-      environment:
         required: true
         type: string
       environments:
@@ -34,49 +48,139 @@ on:
       terraform-version:
         required: true
         type: string
-      test-mode:
-        description: 'Enable test mode (plan only, no apply)'
-        required: false
-        type: boolean
-        default: false
 
 jobs:
   terraform-plan:
     name: Plan ${{ matrix.env }}
-    runs-on: ubuntu-latest
+    runs-on:
+      group: linux-2core-${{ matrix.env }}-${{ matrix.env == 'dev' && 'eastus2' || 'centralus' }}-group
     strategy:
       matrix:
         env: ${{ fromJson(inputs.environments) }}
       fail-fast: false
+
     env:
       TF_VAR_AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
       AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
 
-    steps:
-      - uses: actions/checkout@v4
-      - name: Mock Setup Terraform
-        run: |
-          echo "🔧 Setting up Terraform ${{ inputs.terraform-version }}"
-          echo "✅ Terraform setup completed"
+    defaults:
+      run:
+        shell: bash
 
-      - name: Process Paths
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.github-token }}
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+
+      - name: Process Paths for Environment
         id: process-paths
         run: |
           paths='${{ inputs.paths }}'
           filtered_paths=$(echo "$paths" | jq -r --arg env "${{ matrix.env }}" '.[] | select(startswith($env + "/"))')
+
           if [ -n "$filtered_paths" ]; then
             json_array=$(echo "$filtered_paths" | jq -R . | jq -s -c .)
           else
             json_array="[]"
           fi
-          echo "env-paths=$json_array" >> $GITHUB_OUTPUT
-          echo "Paths for ${{ matrix.env }}: $json_array"
 
-      - name: Mock Plan
+          echo "env-paths=$json_array" >> $GITHUB_OUTPUT
+          echo "Filtered paths for ${{ matrix.env }}: $json_array"
+
+      - name: Select SP Credentials
+        id: select-sp
         if: steps.process-paths.outputs.env-paths != '[]'
         run: |
-          echo "🚀 Mock Terraform Plan for ${{ matrix.env }}"
-          echo "✅ Mock plan done."
+          env="${{ matrix.env }}"
+          case "$env" in
+            dev)  sel='${{ secrets.azure-credentials-dev }}' ;;
+            stg)  sel='${{ secrets.azure-credentials-stg }}' ;;
+            prd)  sel='${{ secrets.azure-credentials-prd }}' ;;
+            *) echo "Unknown environment: $env" >&2; exit 1 ;;
+          esac
+          if [ -z "$sel" ]; then
+            echo "No credentials secret supplied for $env" >&2
+            exit 1
+          fi
+          echo "creds=$sel" >> $GITHUB_OUTPUT
+          echo "SP credentials loaded for $env"
+
+      - name: Select ADB2C Credentials
+        id: select-adb2c
+        if: steps.process-paths.outputs.env-paths != '[]'
+        run: |
+          env="${{ matrix.env }}"
+          case "$env" in
+            dev) adb2c='${{ secrets.azure-credentials-adb2c-dev }}' ;;
+            stg) adb2c='${{ secrets.azure-credentials-adb2c-stg }}' ;;
+            prd) adb2c='${{ secrets.azure-credentials-adb2c-prd }}' ;;
+            *) echo "Unknown environment: $env" >&2; exit 1 ;;
+          esac
+          echo "creds-adb2c=$adb2c" >> $GITHUB_OUTPUT
+          echo "ADB2C credentials loaded for $env"
+
+      - name: Set Environment Variables
+        if: steps.process-paths.outputs.env-paths != '[]'
+        uses: ./.github/workflows/azure-spn-secret-env
+        with:
+          creds-env: ${{ steps.select-sp.outputs.creds }}
+          creds-adb2c: ${{ steps.select-adb2c.outputs.creds-adb2c }}
+          environment: ${{ matrix.env }}
+
+      - name: Configure Git Token
+        if: steps.process-paths.outputs.env-paths != '[]'
+        run: |
+          git config --global url."https://${{ secrets.github-token }}:@github.com/drivegreenlane/".insteadOf "https://github.com/drivegreenlane/"
+
+      - name: Terraform Plan for Environment Paths
+        if: steps.process-paths.outputs.env-paths != '[]'
+        run: |
+          paths='${{ steps.process-paths.outputs.env-paths }}'
+          echo "$paths" | jq -r '.[]' | while read path; do
+            echo "Processing path: $path"
+
+            if [ -d "environments/$path" ]; then
+              cd "environments/$path"
+              echo "Initializing Terraform..."
+              terraform init -backend-config ${{ matrix.env }}.backend.tfvars -upgrade
+              echo "Running Terraform plan..."
+              terraform plan -no-color -out=tfplan -detailed-exitcode || export exitcode=$?
+              terraform show -no-color tfplan > plan.txt
+
+              if [ $exitcode -eq 1 ]; then
+                echo "Terraform plan failed for: $path"
+                exit 1
+              elif [ $exitcode -eq 2 ]; then
+                if grep -q 'destroy' plan.txt; then
+                  echo "::warning::Destroy actions detected in plan for: $path"
+                fi
+                echo "Changes detected for: $path"
+              else
+                echo "::notice::No changes for: $path"
+              fi
+              cd - > /dev/null
+            else
+              echo "Directory not found: environments/$path"
+            fi
+          done
+
+      - name: Upload Plan Artifacts
+        if: steps.process-paths.outputs.env-paths != '[]'
+        run: |
+          paths='${{ steps.process-paths.outputs.env-paths }}'
+          echo "$paths" | jq -r '.[]' | while read path; do
+            if [ -f "environments/$path/tfplan" ]; then
+              service_name=$(echo "$path" | sed 's/\//-/g')
+              echo "Uploading artifact for: tfplan-${{ inputs.team }}-$service_name-${{ github.run_number }}"
+            fi
+          done
 
   approval-notification:
     name: Notify Approval Required
@@ -112,9 +216,9 @@ jobs:
           esac
 
           if [ -z "$WEBHOOK_URL" ]; then
-            echo "❌ No webhook found for env: ${{ matrix.env }}"
+            echo "No webhook found for env: ${{ matrix.env }}"
           else
-            echo "✅ Webhook found for ${{ matrix.env }} (${#WEBHOOK_URL} chars)"
+            echo "Webhook found for ${{ matrix.env }} (${#WEBHOOK_URL} chars)"
           fi
           echo "webhook=$WEBHOOK_URL" >> $GITHUB_OUTPUT
 
@@ -131,7 +235,7 @@ jobs:
               attachments: [
                 {
                   color: "#ff9500",
-                  title: "⏳ Waiting for APIM Apply Approval",
+                  title: "Waiting for APIM Apply Approval",
                   fields: [
                     {title: "Environment", value: $env, short: true},
                     {title: "Repository", value: $repo, short: true},
@@ -139,7 +243,7 @@ jobs:
                     {title: "Files", value: $files, short: false}
                   ],
                   actions: [
-                    {type: "button", text: "🚀 Approve Deployment", url: $url}
+                    {type: "button", text: "Approve Deployment", url: $url}
                   ]
                 }
               ]
@@ -150,17 +254,110 @@ jobs:
 
   terraform-apply:
     name: Apply ${{ matrix.env }}
+    runs-on:
+      group: linux-2core-${{ matrix.env }}-${{ matrix.env == 'dev' && 'eastus2' || 'centralus' }}-group
     needs: [terraform-plan]
-    if: needs.terraform-plan.result == 'success' && inputs.test-mode != true
-    runs-on: ubuntu-latest
+    if: needs.terraform-plan.result == 'success'
+    environment: ${{ matrix.env }}
     strategy:
       matrix:
         env: ${{ fromJson(inputs.environments) }}
       fail-fast: false
 
+    env:
+      TF_VAR_AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
+      AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
+
+    defaults:
+      run:
+        shell: bash
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Mock Apply
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.github-token }}
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+
+      - name: Select SP Credentials
+        id: select-sp
         run: |
-          echo "🚀 Mock Applying Terraform for ${{ matrix.env }}"
-          echo "✅ Apply completed successfully."
+          env="${{ matrix.env }}"
+          case "$env" in
+            dev)  sel='${{ secrets.azure-credentials-dev }}' ;;
+            stg)  sel='${{ secrets.azure-credentials-stg }}' ;;
+            prd)  sel='${{ secrets.azure-credentials-prd }}' ;;
+            *) echo "Unknown environment: $env" >&2; exit 1 ;;
+          esac
+          echo "creds=$sel" >> $GITHUB_OUTPUT
+
+      - name: Select ADB2C Credentials
+        id: select-adb2c
+        run: |
+          env="${{ matrix.env }}"
+          case "$env" in
+            dev) adb2c='${{ secrets.azure-credentials-adb2c-dev }}' ;;
+            stg) adb2c='${{ secrets.azure-credentials-adb2c-stg }}' ;;
+            prd) adb2c='${{ secrets.azure-credentials-adb2c-prd }}' ;;
+            *) echo "Unknown environment: $env" >&2; exit 1 ;;
+          esac
+          echo "creds-adb2c=$adb2c" >> $GITHUB_OUTPUT
+
+      - name: Set Environment Variables
+        uses: ./.github/workflows/azure-spn-secret-env
+        with:
+          creds-env: ${{ steps.select-sp.outputs.creds }}
+          creds-adb2c: ${{ steps.select-adb2c.outputs.creds-adb2c }}
+          environment: ${{ matrix.env }}
+
+      - name: Configure Git Token
+        run: |
+          git config --global url."https://${{ secrets.github-token }}:@github.com/drivegreenlane/".insteadOf "https://github.com/drivegreenlane/"
+
+      - name: Process Paths for Environment
+        id: process-paths
+        run: |
+          paths='${{ inputs.paths }}'
+          filtered_paths=$(echo "$paths" | jq -r --arg env "${{ matrix.env }}" '.[] | select(startswith($env + "/"))')
+
+          if [ -n "$filtered_paths" ]; then
+            json_array=$(echo "$filtered_paths" | jq -R . | jq -s -c .)
+          else
+            json_array="[]"
+          fi
+
+          echo "env-paths=$json_array" >> $GITHUB_OUTPUT
+
+      - name: Terraform Apply for Environment Paths
+        if: steps.process-paths.outputs.env-paths != '[]'
+        run: |
+          paths='${{ steps.process-paths.outputs.env-paths }}'
+          echo "$paths" | jq -r '.[]' | while read path; do
+            echo "Processing apply for path: $path"
+
+            if [ -d "environments/$path" ]; then
+              cd "environments/$path"
+              echo "Initializing Terraform..."
+              terraform init -backend-config ${{ matrix.env }}.backend.tfvars -upgrade
+              echo "Applying Terraform..."
+              terraform apply -auto-approve -input=false
+              cd - > /dev/null
+            else
+              echo "Directory not found: environments/$path"
+            fi
+          done
+
+      - name: Upload TrustFramework Policy
+        if: steps.process-paths.outputs.env-paths != '[]'
+        run: |
+          paths='${{ steps.process-paths.outputs.env-paths }}'
+          echo "$paths" | jq -r '.[]' | while read path; do
+            if [[ "$path" == *"customer-service/ad-b2c"* ]]; then
+              echo "Uploading TrustFramework Policy for: $path"
+            fi
+          done
