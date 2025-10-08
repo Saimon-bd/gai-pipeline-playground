@@ -17,10 +17,9 @@ jobs:
       result: ${{ steps.filter.outputs.changes }}
       envs: ${{ steps.extract-envs.outputs.envs }}
       services: ${{ steps.extract-services.outputs.services }}
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -31,50 +30,61 @@ jobs:
         with:
           filters: '.github/file-filters.yml'
 
-      - name: Extract unique environments
+      - name: Show Changes
+        run: "echo 'Changed filters- ${{ steps.filter.outputs.changes }}'"
+
+      - name: Extract unique envs
         id: extract-envs
         run: |
-          changes='${{ steps.filter.outputs.changes }}'
-          echo "Raw changes: $changes"
+            changes='${{ steps.filter.outputs.changes }}'
+            echo "Raw changes: $changes"
 
-          envs=$(echo "$changes" | jq -r '.[]' | cut -d'/' -f1 | sort -u)
-          echo "Unique envs: $envs"
+            envs=$(echo "$changes" | jq -r '.[]' | cut -d'/' -f1 | sort -u)
+            echo "Unique envs: $envs"
 
-          json_array=$(echo "$envs" | tr ' ' '\n' | jq -R . | jq -s -c .)
-          echo "envs=$json_array" >> $GITHUB_OUTPUT
-          echo "JSON envs array: $json_array"
+            # Convert to compact JSON array format  
+            json_array=$(echo $envs | tr ' ' '\n' | jq -R . | jq -s -c .)
+            echo "JSON array: $json_array"
+            echo "envs=$json_array" >> $GITHUB_OUTPUT
 
       - name: Extract unique services
         id: extract-services
         run: |
-          changes='${{ steps.filter.outputs.changes }}'
-          services=$(echo "$changes" | jq -r '.[]' | cut -d'/' -f2 | sort -u)
-          echo "services=$(echo $services | tr ' ' ',')" >> $GITHUB_OUTPUT
-          echo "Unique services: $services"
+            changes='${{ steps.filter.outputs.changes }}'
+            echo "Raw changes: $changes"
+
+            services=$(echo "$changes" | jq -r '.[]' | cut -d'/' -f2 | sort -u)
+            echo "Unique services: $services"
+
+            echo "services=$(echo $services | tr ' ' ',')" >> $GITHUB_OUTPUT
 
       - name: Show parsed outputs
         run: |
-          echo "Detected envs: [${{ steps.extract-envs.outputs.envs }}]"
-          echo "Detected services: [${{ steps.extract-services.outputs.services }}]"
+            echo "env: [${{ steps.extract-envs.outputs.envs }}]"
+            echo "service: [${{ steps.extract-services.outputs.services }}]"
 
   cd:
     name: Terraform CD
-    needs: paths
     if: ${{ needs.paths.outputs.result != '[]' && github.event.pull_request.merged == true }}
+    needs: paths
     uses: ./.github/workflows/auto-terraform-cd.yml
-    secrets:
+    secrets: 
       github-token: ${{ secrets.BOT_GITHUB }}
-      azure-credentials-env: ${{ secrets.AZ_SP_INFRA_CREDS_DEV }}
-      azure-credentials-adb2c: ${{ secrets.AZ_B2C_APP_DEV }}
+      azure-credentials-dev: ${{ secrets.AZ_SP_INFRA_CREDS_DEV }}
+      azure-credentials-stg: ${{ secrets.AZ_SP_INFRA_CREDS_STG }}
+      azure-credentials-prd: ${{ secrets.AZ_SP_INFRA_CREDS_PRD }}
+
+      azure-credentials-adb2c-dev: ${{ secrets.AZ_B2C_APP_DEV }}
+      azure-credentials-adb2c-stg: ${{ secrets.AZ_B2C_APP_STG }}
+      azure-credentials-adb2c-prd: ${{ secrets.AZ_B2C_APP_PRD }}
+
       azure-shared-subscription-id: ${{ secrets.AZ_SHARED_SUBSCRIPTION_ID }}
-      # ✅ Forward Slack webhooks
+
       SLACK_WEBHOOK_URL_DEV: ${{ secrets.SLACK_WEBHOOK_URL_DEV }}
       SLACK_WEBHOOK_URL_STG: ${{ secrets.SLACK_WEBHOOK_URL_STG }}
       SLACK_WEBHOOK_URL_PRD: ${{ secrets.SLACK_WEBHOOK_URL_PRD }}
     with:
       team: greenlane
-      environment: auto
       paths: ${{ needs.paths.outputs.result }}
       environments: ${{ needs.paths.outputs.envs }}
       terraform-version: 1.6.3
-      test-mode: false
