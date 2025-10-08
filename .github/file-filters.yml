@@ -9,6 +9,8 @@ dev/ocpi-service/apim-config:
   - 'environments/dev/ocpi-service/apim-config/**'
 dev/public-api/apim-config:
   - 'environments/dev/public-api/apim-config/**'
+dev/test/apim-config:
+  - 'environments/dev/test/apim-config/**'
 
 # stg
 stg/charging-service/apim-config:
@@ -21,6 +23,8 @@ stg/ocpi-service/apim-config:
   - 'environments/stg/ocpi-service/apim-config/**'
 stg/public-api/apim-config:
   - 'environments/stg/public-api/apim-config/**'
+stg/test/apim-config:
+  - 'environments/stg/test/apim-config/**'
 
 # prd
 prd/charging-service/apim-config:
@@ -31,3 +35,5 @@ prd/customer-service/apim-config:
   - 'environments/prd/customer-service/apim-config/**'
 prd/public-api/apim-config:
   - 'environments/prd/public-api/apim-config/**'
+prd/test/apim-config:
+  - 'environments/prd/test/apim-config/**'
