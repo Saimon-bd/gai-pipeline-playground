@@ -155,3 +155,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        env: ${{ fromJson(inputs.environments) }}
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mock Apply
+        run: |
+          echo "🚀 Mock Applying Terraform for ${{ matrix.env }}"
+          echo "✅ Apply completed successfully."
