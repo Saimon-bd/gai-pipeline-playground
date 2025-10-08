@@ -105,7 +105,6 @@ jobs:
               echo "Uploading artifact for: tfplan-${{ inputs.team }}-$service_name-${{ github.run_number }}"
             fi
           done
-
   approval-notification:
     name: Notify Approval Required
     needs: [terraform-plan]
@@ -115,74 +114,97 @@ jobs:
       matrix:
         env: ${{ fromJson(inputs.environments) }}
       fail-fast: false
-    
+
+    # ✅ Inject all Slack secrets as env vars here
+    env:
+      SLACK_WEBHOOK_URL_DEV: ${{ secrets.SLACK_WEBHOOK_URL_DEV }}
+      SLACK_WEBHOOK_URL_STG: ${{ secrets.SLACK_WEBHOOK_URL_STG }}
+      SLACK_WEBHOOK_URL_PRD: ${{ secrets.SLACK_WEBHOOK_URL_PRD }}
+      GITHUB_TOKEN: ${{ secrets.github-token }}
+
     steps:
       - name: Process Paths for Environment
         id: process-paths
         run: |
           paths='${{ inputs.paths }}'
           filtered_paths=$(echo "$paths" | jq -r --arg env "${{ matrix.env }}" '.[] | select(startswith($env + "/"))')
-          
-          # Get file list for notification (single line)
+
           file_list=""
           if [ -n "$filtered_paths" ]; then
             file_list=$(echo "$filtered_paths" | tr '\n' ', ' | sed 's/, $//' | tr -d '\r')
           fi
-          
+
           echo "files=$file_list" >> $GITHUB_OUTPUT
           echo "Files for ${{ matrix.env }}: $file_list"
 
       - name: Get Slack Webhook for Environment
         id: slack-webhook
         run: |
-          echo "🔍 Debug: Environment = ${{ matrix.env }}"
-          
+          echo "🔍 Environment = ${{ matrix.env }}"
+
           case "${{ matrix.env }}" in
             "dev")
-              WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_DEV }}"
-              echo "🔍 Debug: DEV webhook length = ${#WEBHOOK_URL}"
-              echo "webhook=$WEBHOOK_URL" >> $GITHUB_OUTPUT
+              WEBHOOK_URL="$SLACK_WEBHOOK_URL_DEV"
               ;;
             "stg")
-              WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_STG }}"
-              echo "🔍 Debug: STG webhook length = ${#WEBHOOK_URL}"
-              echo "webhook=$WEBHOOK_URL" >> $GITHUB_OUTPUT
+              WEBHOOK_URL="$SLACK_WEBHOOK_URL_STG"
               ;;
             "prd")
-              WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL_PRD }}"
-              echo "🔍 Debug: PRD webhook length = ${#WEBHOOK_URL}"
-              echo "webhook=$WEBHOOK_URL" >> $GITHUB_OUTPUT
+              WEBHOOK_URL="$SLACK_WEBHOOK_URL_PRD"
               ;;
             *)
-              echo "🔍 Debug: Unknown environment = ${{ matrix.env }}"
-              echo "webhook=" >> $GITHUB_OUTPUT
+              WEBHOOK_URL=""
               ;;
           esac
+
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "❌ No webhook found for env: ${{ matrix.env }}"
+          else
+            echo "✅ Webhook found for ${{ matrix.env }} (${#WEBHOOK_URL} chars)"
+          fi
+
+          echo "webhook=$WEBHOOK_URL" >> $GITHUB_OUTPUT
 
       - name: Send Approval Waiting Notification
         if: steps.slack-webhook.outputs.webhook != ''
         run: |
+          set -e
+
           echo "📱 Sending Slack notification for ${{ matrix.env }}"
-          echo "🔍 Webhook URL: ${{ steps.slack-webhook.outputs.webhook }}"
-          
+          echo "🔗 Webhook URL length: ${#WEBHOOK_URL}"
+
+          # ✅ Use jq for safe JSON payload creation
+          payload=$(jq -n \
+            --arg env "${{ matrix.env }}" \
+            --arg repo "${{ github.repository }}" \
+            --arg actor "${{ github.actor }}" \
+            --arg files "${{ steps.process-paths.outputs.files }}" \
+            --arg url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{
+              attachments: [
+                {
+                  color: "#ff9500",
+                  title: "⏳ Waiting for APIM Apply Approval",
+                  fields: [
+                    {title: "Environment", value: $env, short: true},
+                    {title: "Repository", value: $repo, short: true},
+                    {title: "Triggered by", value: $actor, short: true},
+                    {title: "Files", value: $files, short: false}
+                  ],
+                  actions: [
+                    {
+                      type: "button",
+                      text: "🚀 Approve Deployment",
+                      url: $url
+                    }
+                  ]
+                }
+              ]
+            }')
+
+          echo "$payload" | jq '.'
           curl -X POST -H 'Content-type: application/json' \
-            --data "{
-              \"attachments\": [{
-                \"color\": \"#ff9500\",
-                \"title\": \"⏳ Waiting for APIM Apply Approval\",
-                \"fields\": [
-                  {\"title\": \"Environment\", \"value\": \"${{ matrix.env }}\", \"short\": true},
-                  {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true},
-                  {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
-                  {\"title\": \"Files\", \"value\": \"${{ steps.process-paths.outputs.files }}\", \"short\": false}
-                ],
-                \"actions\": [{
-                  \"type\": \"button\",
-                  \"text\": \"🚀 Approve Deployment\",
-                  \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
-                }]
-              }]
-            }" \
+            -d "$payload" \
             "${{ steps.slack-webhook.outputs.webhook }}"
 
   terraform-apply:
