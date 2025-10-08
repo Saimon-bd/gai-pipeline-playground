@@ -11,6 +11,13 @@ on:
         required: false
       azure-shared-subscription-id:
         required: false
+      # ✅ Slack webhook secrets
+      SLACK_WEBHOOK_URL_DEV:
+        required: false
+      SLACK_WEBHOOK_URL_STG:
+        required: false
+      SLACK_WEBHOOK_URL_PRD:
+        required: false
     inputs:
       team:
         required: true
@@ -41,70 +48,36 @@ jobs:
       matrix:
         env: ${{ fromJson(inputs.environments) }}
       fail-fast: false
-    
     env:
       TF_VAR_AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
       AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
-    
-    defaults:
-      run:
-        shell: bash
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
 
+    steps:
+      - uses: actions/checkout@v4
       - name: Mock Setup Terraform
         run: |
-          echo "🔧 Mock: Setting up Terraform ${{ inputs.terraform-version }}"
-          echo "✅ Mock: Terraform setup completed"
+          echo "🔧 Setting up Terraform ${{ inputs.terraform-version }}"
+          echo "✅ Terraform setup completed"
 
-      - name: Process Paths for Environment
+      - name: Process Paths
         id: process-paths
         run: |
-          # Filter paths for current matrix environment
           paths='${{ inputs.paths }}'
           filtered_paths=$(echo "$paths" | jq -r --arg env "${{ matrix.env }}" '.[] | select(startswith($env + "/"))')
-          
-          # Convert to compact JSON array (single line)
           if [ -n "$filtered_paths" ]; then
             json_array=$(echo "$filtered_paths" | jq -R . | jq -s -c .)
           else
             json_array="[]"
           fi
-          
           echo "env-paths=$json_array" >> $GITHUB_OUTPUT
-          echo "Filtered paths for ${{ matrix.env }}: $json_array"
+          echo "Paths for ${{ matrix.env }}: $json_array"
 
-      - name: Mock Environment Setup
+      - name: Mock Plan
         if: steps.process-paths.outputs.env-paths != '[]'
         run: |
-          echo "🔧 Mock: Setting up environment variables for ${{ matrix.env }}"
-          echo "🔧 Mock: Configuring git authentication"
+          echo "🚀 Mock Terraform Plan for ${{ matrix.env }}"
+          echo "✅ Mock plan done."
 
-      - name: Mock Terraform Plan for Environment Paths
-        if: steps.process-paths.outputs.env-paths != '[]'
-        run: |
-          paths='${{ steps.process-paths.outputs.env-paths }}'
-          echo "$paths" | jq -r '.[]' | while read path; do
-            echo "🚀 Mock Processing path: $path"
-            echo "✅ Mock Terraform Plan completed successfully for: $path"
-            echo "📊 Mock Resources to create: 3, update: 1, destroy: 0"
-          done
-
-      # Upload plan artifacts for each path
-      - name: Upload Plan Artifacts
-        if: steps.process-paths.outputs.env-paths != '[]'
-        run: |
-          paths='${{ steps.process-paths.outputs.env-paths }}'
-          echo "$paths" | jq -r '.[]' | while read path; do
-            if [ -f "environments/$path/tfplan" ]; then
-              service_name=$(echo "$path" | sed 's/\//-/g')
-              echo "Uploading artifact for: tfplan-${{ inputs.team }}-$service_name-${{ github.run_number }}"
-            fi
-          done
   approval-notification:
     name: Notify Approval Required
     needs: [terraform-plan]
@@ -114,13 +87,10 @@ jobs:
       matrix:
         env: ${{ fromJson(inputs.environments) }}
       fail-fast: false
-
-    # ✅ Inject all Slack secrets as env vars here
     env:
       SLACK_WEBHOOK_URL_DEV: ${{ secrets.SLACK_WEBHOOK_URL_DEV }}
       SLACK_WEBHOOK_URL_STG: ${{ secrets.SLACK_WEBHOOK_URL_STG }}
       SLACK_WEBHOOK_URL_PRD: ${{ secrets.SLACK_WEBHOOK_URL_PRD }}
-      GITHUB_TOKEN: ${{ secrets.github-token }}
 
     steps:
       - name: Process Paths for Environment
@@ -128,33 +98,17 @@ jobs:
         run: |
           paths='${{ inputs.paths }}'
           filtered_paths=$(echo "$paths" | jq -r --arg env "${{ matrix.env }}" '.[] | select(startswith($env + "/"))')
-
-          file_list=""
-          if [ -n "$filtered_paths" ]; then
-            file_list=$(echo "$filtered_paths" | tr '\n' ', ' | sed 's/, $//' | tr -d '\r')
-          fi
-
+          file_list=$(echo "$filtered_paths" | tr '\n' ', ' | sed 's/, $//' | tr -d '\r')
           echo "files=$file_list" >> $GITHUB_OUTPUT
-          echo "Files for ${{ matrix.env }}: $file_list"
 
       - name: Get Slack Webhook for Environment
         id: slack-webhook
         run: |
-          echo "🔍 Environment = ${{ matrix.env }}"
-
           case "${{ matrix.env }}" in
-            "dev")
-              WEBHOOK_URL="$SLACK_WEBHOOK_URL_DEV"
-              ;;
-            "stg")
-              WEBHOOK_URL="$SLACK_WEBHOOK_URL_STG"
-              ;;
-            "prd")
-              WEBHOOK_URL="$SLACK_WEBHOOK_URL_PRD"
-              ;;
-            *)
-              WEBHOOK_URL=""
-              ;;
+            "dev") WEBHOOK_URL="$SLACK_WEBHOOK_URL_DEV" ;;
+            "stg") WEBHOOK_URL="$SLACK_WEBHOOK_URL_STG" ;;
+            "prd") WEBHOOK_URL="$SLACK_WEBHOOK_URL_PRD" ;;
+            *) WEBHOOK_URL="" ;;
           esac
 
           if [ -z "$WEBHOOK_URL" ]; then
@@ -162,18 +116,11 @@ jobs:
           else
             echo "✅ Webhook found for ${{ matrix.env }} (${#WEBHOOK_URL} chars)"
           fi
-
           echo "webhook=$WEBHOOK_URL" >> $GITHUB_OUTPUT
 
-      - name: Send Approval Waiting Notification
+      - name: Send Slack Notification
         if: steps.slack-webhook.outputs.webhook != ''
         run: |
-          set -e
-
-          echo "📱 Sending Slack notification for ${{ matrix.env }}"
-          echo "🔗 Webhook URL length: ${#WEBHOOK_URL}"
-
-          # ✅ Use jq for safe JSON payload creation
           payload=$(jq -n \
             --arg env "${{ matrix.env }}" \
             --arg repo "${{ github.repository }}" \
@@ -192,96 +139,19 @@ jobs:
                     {title: "Files", value: $files, short: false}
                   ],
                   actions: [
-                    {
-                      type: "button",
-                      text: "🚀 Approve Deployment",
-                      url: $url
-                    }
+                    {type: "button", text: "🚀 Approve Deployment", url: $url}
                   ]
                 }
               ]
             }')
-
           echo "$payload" | jq '.'
-          curl -X POST -H 'Content-type: application/json' \
-            -d "$payload" \
+          curl -X POST -H 'Content-type: application/json' -d "$payload" \
             "${{ steps.slack-webhook.outputs.webhook }}"
 
   terraform-apply:
     name: Apply ${{ matrix.env }}
-    runs-on: ubuntu-latest
     needs: [terraform-plan]
     if: needs.terraform-plan.result == 'success' && inputs.test-mode != true
-    environment: ${{ matrix.env }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        env: ${{ fromJson(inputs.environments) }}
-      fail-fast: false
-    
-    env:
-      TF_VAR_AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
-      AZ_SHARED_SUBSCRIPTION_ID: ${{ secrets.azure-shared-subscription-id }}
-    
-    defaults:
-      run:
-        shell: bash
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Mock Setup Terraform
-        run: |
-          echo "🔧 Mock: Setting up Terraform ${{ inputs.terraform-version }}"
-          echo "✅ Mock: Terraform setup completed"
-
-      - name: Set Environment Variables
-        uses: ./.github/workflows/azure-spn-secret-env
-        with:
-          creds-env: ${{ secrets.azure-credentials-env }}
-          creds-adb2c: ${{ secrets.azure-credentials-adb2c }}
-          environment: ${{ matrix.env }}
-
-      - name: Configure git token
-        run: git config --global url."https://${{ secrets.github-token }}:@github.com/drivegreenlane/".insteadOf "https://github.com/drivegreenlane/"\
-
-      - name: Process Paths for Environment
-        id: process-paths
-        run: |
-          paths='${{ inputs.paths }}'
-          filtered_paths=$(echo "$paths" | jq -r --arg env "${{ matrix.env }}" '.[] | select(startswith($env + "/"))')
-          
-          # Convert to compact JSON array (single line)
-          if [ -n "$filtered_paths" ]; then
-            json_array=$(echo "$filtered_paths" | jq -R . | jq -s -c .)
-          else
-            json_array="[]"
-          fi
-          
-          echo "env-paths=$json_array" >> $GITHUB_OUTPUT
-          echo "Apply paths for ${{ matrix.env }}: $json_array"
-
-      - name: Mock Terraform Apply for Environment Paths
-        if: steps.process-paths.outputs.env-paths != '[]'
-        run: |
-          paths='${{ steps.process-paths.outputs.env-paths }}'
-          echo "$paths" | jq -r '.[]' | while read path; do
-            echo "🚀 Mock Applying Terraform for path: $path"
-            echo "✅ Mock Terraform Apply completed successfully for: $path"
-            echo "📊 Mock Resources applied: 3 created, 1 updated, 0 destroyed"
-            echo "🎉 Mock Infrastructure deployment completed for: $path"
-          done
-
-      - name: Mock Upload TrustFramework Policy
-        if: steps.process-paths.outputs.env-paths != '[]'
-        run: |
-          paths='${{ steps.process-paths.outputs.env-paths }}'
-          echo "$paths" | jq -r '.[]' | while read path; do
-            if [[ "$path" == *"customer-service/ad-b2c"* ]]; then
-              echo "📋 Mock: Uploading TrustFramework Policy for: $path"
-              echo "✅ Mock: B2C Policy uploaded successfully"
-            fi
-          done
-
