@@ -43,8 +43,7 @@ jobs:
             echo "Unique envs: $envs"
 
             # Convert to compact JSON array format  
-            json_array=$(echo $envs | tr ' ' '\n' | jq -R . | jq -s -c .)
-            echo "JSON array: $json_array"
+            json_array=$(printf '%s\n' $envs | jq -R . | jq -s -c .)
             echo "envs=$json_array" >> $GITHUB_OUTPUT
 
       - name: Extract unique services
